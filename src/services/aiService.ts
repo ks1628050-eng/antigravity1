@@ -11,7 +11,8 @@ export interface AIRequestContext {
 
 export const aiService = {
   /**
-   * Main chat completion with streaming token support
+   * Main chat completion with streaming token support.
+  * Priority: Supabase Edge Function → Smart Offline Brain
    */
   generateChatResponse: async (
     prompt: string,
@@ -19,9 +20,9 @@ export const aiService = {
     context: AIRequestContext,
     onChunk?: (chunk: string) => void
   ): Promise<string> => {
-    const { settings, profile, memories } = context;
+    const { settings } = context;
 
-    // Production requests go through the authenticated Supabase Edge Function.
+    // 1. Supabase Edge Function (most secure — API keys stay server-side)
     if (backendService.isConfigured && settings.provider !== 'mock') {
       try {
         const result = await backendService.invokeAI({ prompt, history, context, provider: settings.provider, model: settings.model, temperature: settings.temperature });
@@ -30,11 +31,11 @@ export const aiService = {
           return result.text;
         }
       } catch (err: any) {
-        console.warn('Secure AI request failed, falling back to smart offline brain:', err);
+        console.warn('Supabase AI call failed, using offline brain:', err);
       }
     }
 
-    // Fallback: Smart Built-in Offline Brain
+    // Smart Built-in Offline Brain (always available, zero cost)
     return await generateSmartMockResponse(prompt, history, context, onChunk);
   },
 
