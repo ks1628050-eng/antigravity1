@@ -52,7 +52,6 @@ export const SettingsView: React.FC = () => {
     e.preventDefault();
     updateSettings({
       provider,
-      apiKey: '',
       model,
       temperature
     });

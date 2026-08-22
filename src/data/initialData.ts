@@ -333,7 +333,6 @@ export const initialBusinessIdeas: BusinessIdea[] = [
 
 export const initialSettings: AISettings = {
   provider: 'mock',
-  apiKey: '',
   model: 'gemini-1.5-flash',
   temperature: 0.7,
   theme: 'dark',

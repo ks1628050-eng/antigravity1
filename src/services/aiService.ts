@@ -131,51 +131,26 @@ export const aiService = {
     resumeText: string,
     targetRole: string
   ): Promise<ResumeAnalysis> => {
-    // Calculate realistic score based on keywords
     let score = 72;
     const lower = resumeText.toLowerCase();
-
     const techKeywords = ['react', 'next.js', 'typescript', 'python', 'c++', 'sql', 'postgresql', 'docker', 'git', 'api', 'aws', 'rest', 'tailwind', 'algorithms', 'data structures'];
-    const matchedSkills = techKeywords.filter(k => lower.includes(k));
-    const missingSkills = ['Redis / Caching', 'CI/CD Pipelines (GitHub Actions)', 'System Design / Microservices', 'Unit & Integration Testing (Jest/Vitest)', 'Docker Containerization'].filter(s => !lower.includes(s.toLowerCase()));
-
+    const matchedSkills = techKeywords.filter(keyword => lower.includes(keyword));
+    const missingSkills = ['Redis / Caching', 'CI/CD Pipelines (GitHub Actions)', 'System Design / Microservices', 'Unit & Integration Testing (Jest/Vitest)', 'Docker Containerization'].filter(skill => !lower.includes(skill.toLowerCase()));
     if (matchedSkills.length > 6) score += 12;
     if (lower.includes('metric') || lower.includes('%') || lower.includes('increased') || lower.includes('reduced') || lower.includes('ms')) score += 8;
-
     score = Math.min(score, 94);
-
     return {
       id: `resume-${Date.now()}`,
       overallScore: score,
-      summary: `Your resume shows strong foundational engineering and full-stack project experience for a **${targetRole || 'Full Stack / AI Engineer'}** role. With high-impact metric rewrites and cloud/system design keywords, this resume can easily clear tier-1 ATS filters.`,
-      detectedSkills: matchedSkills.map(s => s.toUpperCase()),
+      summary: `Your resume shows strong foundational engineering and full-stack project experience for a **${targetRole || 'Full Stack / AI Engineer'}** role.`,
+      detectedSkills: matchedSkills.map(skill => skill.toUpperCase()),
       missingSkills,
-      strengths: [
-        'Solid modern web development stack (React, TypeScript, Next.js, Python)',
-        'Hands-on project experience with real-world AI applications',
-        'Strong problem-solving foundation in Data Structures & Algorithms',
-        'Clean section hierarchy suitable for ATS parsing'
-      ],
-      weakSections: [
-        'Project bullet points focus heavily on "what was built" rather than measurable quantitative impact (latency reductions, user count, test coverage).',
-        'Missing formal mention of automated testing (Vitest/Jest, Cypress) and deployment pipelines (CI/CD).'
-      ],
-      improvementSuggestions: [
-        'Adopt the Google XYZ Formula: "Accomplished [X] as measured by [Y], by doing [Z]" on all project bullets.',
-        'Add a dedicated "Technical Skills" table at the top with Categorized sub-rows: Languages, Frameworks, Cloud & Databases, Developer Tools.',
-        'Highlight GitHub links and live deployed demo URLs for your top 2 featured projects.'
-      ],
+      strengths: ['Solid modern web development stack', 'Hands-on project experience', 'Strong problem-solving foundation', 'Clean section hierarchy suitable for ATS parsing'],
+      weakSections: ['Project bullets need measurable quantitative impact.', 'Testing and CI/CD are not clearly represented.'],
+      improvementSuggestions: ['Use the Google XYZ formula for project bullets.', 'Add categorized technical skills.', 'Include GitHub and live demo links.'],
       rewrittenBullets: [
-        {
-          before: 'Built an AI assistant web app using React and Gemini API for college students.',
-          after: 'Architected and deployed a multi-tenant AI copilot with React, TypeScript, and Gemini API, reducing study query latency by 45% and serving 500+ active student sessions.',
-          reason: 'Quantifies performance improvement and user adoption with specific technical stack.'
-        },
-        {
-          before: 'Worked on database queries and backend APIs using Node.js and PostgreSQL.',
-          after: 'Engineered 15+ RESTful endpoints and optimized complex SQL joins in PostgreSQL with B-tree indexing, decreasing average API response time from 320ms to 85ms.',
-          reason: 'Showcases backend optimization depth and database indexing knowledge.'
-        }
+        { before: 'Built an AI assistant web app using React and Gemini API.', after: 'Architected and deployed a multi-tenant AI copilot with React and TypeScript, reducing response latency by 45%.', reason: 'Quantifies impact and technical ownership.' },
+        { before: 'Worked on database queries and backend APIs.', after: 'Engineered REST endpoints and optimized PostgreSQL queries with indexing, reducing average response time from 320ms to 85ms.', reason: 'Shows backend depth with measurable results.' }
       ],
       createdAt: new Date().toISOString()
     };
@@ -185,145 +160,11 @@ export const aiService = {
 async function streamText(fullText: string, onChunk: (chunk: string) => void): Promise<void> {
   const words = fullText.split(' ');
   let current = '';
-  for (let i = 0; i < words.length; i++) {
-    current += (i === 0 ? '' : ' ') + words[i];
+  for (let index = 0; index < words.length; index++) {
+    current += (index === 0 ? '' : ' ') + words[index];
     onChunk(current);
     await new Promise(resolve => setTimeout(resolve, 12));
   }
-}
-
-/**
- * Direct Google Gemini API Call
- */
-async function callGeminiAPI(
-  prompt: string,
-  history: { role: 'user' | 'assistant'; content: string }[],
-  context: AIRequestContext,
-  onChunk?: (chunk: string) => void
-): Promise<string> {
-  const { settings, profile, memories } = context;
-  const apiKey = settings.apiKey;
-  const model = settings.model || 'gemini-1.5-flash';
-
-  const systemInstruction = `You are Kedar AI — an elite, hyper-intelligent, versatile personal AI assistant, coding mentor, career coach, and productivity companion built specifically for ${profile.name}.
-User Profile:
-- Education: ${profile.education} (${profile.branch})
-- College: ${profile.college}, ${profile.currentSemester}
-- Target Role: ${profile.targetRole}
-- Core Skills: ${profile.skills.join(', ')}
-- Current Projects: ${profile.currentProjects.join(', ')}
-- Learning Style: ${profile.preferredLearningStyle}
-
-Active User Memories:
-${memories.map(m => `- [${m.category}] ${m.content}`).join('\n')}
-
-Guidelines:
-1. Provide concise, modern, production-grade code (TypeScript/Python/C++) with syntax highlighting and complexity analysis ($O(N)$) when relevant.
-2. Be encouraging, highly practical, and articulate.
-3. Structure responses with clean Markdown headers, bullet points, and code blocks.`;
-
-  const contents = [
-    ...history.slice(-6).map(h => ({
-      role: h.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: h.content }]
-    })),
-    {
-      role: 'user',
-      parts: [{ text: prompt }]
-    }
-  ];
-
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents,
-        systemInstruction: { parts: [{ text: systemInstruction }] },
-        generationConfig: {
-          temperature: settings.temperature || 0.7,
-          maxOutputTokens: 2048,
-        }
-      })
-    }
-  );
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error?.message || 'Gemini API call failed');
-  }
-
-  const data = await response.json();
-  const fullText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated.';
-
-  // Simulate token streaming if onChunk is provided
-  if (onChunk) {
-    const words = fullText.split(' ');
-    let current = '';
-    for (let i = 0; i < words.length; i++) {
-      current += (i === 0 ? '' : ' ') + words[i];
-      onChunk(current);
-      await new Promise(r => setTimeout(r, 12));
-    }
-  }
-
-  return fullText;
-}
-
-/**
- * Direct OpenAI API Call
- */
-async function callOpenAIAPI(
-  prompt: string,
-  history: { role: 'user' | 'assistant'; content: string }[],
-  context: AIRequestContext,
-  onChunk?: (chunk: string) => void
-): Promise<string> {
-  const { settings, profile, memories } = context;
-  const apiKey = settings.apiKey;
-
-  const messages = [
-    {
-      role: 'system',
-      content: `You are Kedar AI for ${profile.name}. Skills: ${profile.skills.join(', ')}. Target: ${profile.targetRole}. Memories: ${memories.map(m => m.content).join('; ')}`
-    },
-    ...history.slice(-6).map(h => ({ role: h.role, content: h.content })),
-    { role: 'user', content: prompt }
-  ];
-
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model: settings.model || 'gpt-4o-mini',
-      messages,
-      temperature: settings.temperature || 0.7
-    })
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error?.message || 'OpenAI API call failed');
-  }
-
-  const data = await response.json();
-  const fullText = data.choices?.[0]?.message?.content || 'No response.';
-
-  if (onChunk) {
-    const words = fullText.split(' ');
-    let current = '';
-    for (let i = 0; i < words.length; i++) {
-      current += (i === 0 ? '' : ' ') + words[i];
-      onChunk(current);
-      await new Promise(r => setTimeout(r, 15));
-    }
-  }
-
-  return fullText;
 }
 
 /**

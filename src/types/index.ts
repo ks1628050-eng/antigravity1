@@ -182,8 +182,7 @@ export interface CodeSnippet {
 }
 
 export interface AISettings {
-  provider: 'gemini' | 'openai' | 'anthropic' | 'mock';
-  apiKey: string;
+  provider: 'gemini' | 'openai' | 'mock';
   model: string;
   temperature: number;
   theme: 'dark' | 'light';

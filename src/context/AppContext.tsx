@@ -100,7 +100,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (workspace?.messages) setMessages(workspace.messages);
         if (workspace?.businessIdeas) setBusinessIdeas(workspace.businessIdeas);
         if (workspace?.contentPosts) setContentPosts(workspace.contentPosts);
-        if (workspace?.settings) setSettings({ ...workspace.settings, apiKey: '' });
+        if (workspace?.settings) setSettings(workspace.settings);
       } catch (error) {
         console.warn('Cloud workspace unavailable; continuing with local data.', error);
       } finally {
@@ -137,7 +137,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       messages,
       businessIdeas,
       contentPosts,
-      settings: { ...settings, apiKey: '' }
+      settings
     }).catch(error => console.warn('Cloud workspace sync failed.', error));
   }, [isBackendHydrated, profile, tasks, memories, roadmaps, conversations, messages, businessIdeas, contentPosts, settings]);
 
