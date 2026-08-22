@@ -147,7 +147,7 @@ export const initialRoadmaps: LearningRoadmap[] = [
     level: 'Advanced',
     progress: 65,
     modules: [
-      { id: 'm1', title: 'Foundations of LLMs & API Integration', topics: ['Tokenization & Context Windows', 'Gemini & OpenAI APIs', 'Structured JSON Output'], completed: true },
+      { id: 'm1', title: 'Foundations of LLMs & API Integration', topics: ['Tokenization & Context Windows', 'Gemini API integration', 'Structured JSON Output'], completed: true },
       { id: 'm2', title: 'Retrieval Augmented Generation (RAG)', topics: ['Embeddings & Cosine Similarity', 'ChromaDB & Pinecone', 'Hybrid Search & Re-ranking'], completed: true },
       { id: 'm3', title: 'Autonomous Multi-Agent Systems', topics: ['Tool Calling & Function Execution', 'Plan-and-Solve Agents', 'Stateful Memory Graphs'], completed: false },
       { id: 'm4', title: 'Production Deployment & Evaluation', topics: ['Latency Optimization & Streaming', 'Traces & Telemetry', 'Dockerizing AI Microservices'], completed: false }
@@ -333,7 +333,7 @@ export const initialBusinessIdeas: BusinessIdea[] = [
 
 export const initialSettings: AISettings = {
   provider: 'mock',
-  model: 'gemini-1.5-flash',
+  model: 'gemini-2.0-flash',
   temperature: 0.7,
   theme: 'dark',
   autoSaveMemory: true,

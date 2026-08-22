@@ -283,7 +283,7 @@ export const SettingsView: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-purple-400" />
-                  <span className="text-xs font-bold text-white">OpenAI (GPT-4o)</span>
+                  <span className="text-xs font-bold text-white">Gemini server function</span>
                 </div>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-500">Server secret</span>
               </div>
@@ -300,8 +300,8 @@ export const SettingsView: React.FC = () => {
             <ol className="text-[11px] text-slate-400 space-y-1.5 list-decimal list-inside leading-relaxed">
               <li>Get a free Gemini API key from <a href="https://aistudio.google.com" target="_blank" className="text-indigo-400 font-mono">aistudio.google.com</a></li>
               <li>Create a file called <code className="font-mono text-amber-300">.env</code> in your project root folder (next to package.json)</li>
-              <li>Set <code className="font-mono text-emerald-300">GEMINI_API_KEY</code> or <code className="font-mono text-emerald-300">OPENAI_API_KEY</code> as a Supabase Edge Function secret.</li>
-              <li>Deploy the <code className="font-mono text-indigo-300">ai-chat</code> function and select the matching provider below.</li>
+              <li>Set <code className="font-mono text-emerald-300">GEMINI_API_KEY</code> as a Supabase Edge Function secret.</li>
+              <li>Deploy the <code className="font-mono text-indigo-300">ai-chat</code> function and select Gemini below.</li>
             </ol>
           </div>
 
@@ -312,7 +312,6 @@ export const SettingsView: React.FC = () => {
                 {[
                   { id: 'mock', label: '🧠 Smart Offline Brain', desc: 'No key needed. Always available.', active: true },
                   { id: 'gemini', label: '✨ Google Gemini', desc: 'Requires server-side Gemini secret', active: true },
-                  { id: 'openai', label: '🤖 OpenAI GPT', desc: 'Requires server-side OpenAI secret', active: true },
                 ].map((p) => (
                   <div
                     key={p.id}
@@ -345,7 +344,7 @@ export const SettingsView: React.FC = () => {
                 placeholder="gemini-1.5-flash"
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-slate-100 outline-none focus:border-indigo-500"
               />
-              <p className="text-[11px] text-slate-500 mt-1">Gemini: gemini-1.5-flash (fast) or gemini-1.5-pro (smarter) · OpenAI: gpt-4o-mini (cheap) or gpt-4o</p>
+              <p className="text-[11px] text-slate-500 mt-1">Gemini models: gemini-2.0-flash (fast) or gemini-1.5-pro (smarter).</p>
             </div>
 
             <div>

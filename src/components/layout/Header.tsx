@@ -101,7 +101,7 @@ export const Header: React.FC = () => {
           >
             <div className={`w-2 h-2 rounded-full ${settings.provider !== 'mock' ? 'bg-emerald-400 animate-pulse' : 'bg-indigo-400'}`} />
             <span className="font-mono">
-              {settings.provider === 'gemini' ? 'Gemini 1.5 Flash' : settings.provider === 'openai' ? 'OpenAI GPT-4o' : 'Smart Offline Brain'}
+              {settings.provider === 'gemini' ? 'Gemini' : 'Smart Offline Brain'}
             </span>
           </div>
 

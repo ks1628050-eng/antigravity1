@@ -23,7 +23,7 @@ export const aiService = {
     const { settings } = context;
 
     // 1. Supabase Edge Function (most secure — API keys stay server-side)
-    if (backendService.isConfigured && settings.provider !== 'mock') {
+    if (backendService.isConfigured && settings.provider === 'gemini') {
       try {
         const result = await backendService.invokeAI({ prompt, history, context, provider: settings.provider, model: settings.model, temperature: settings.temperature });
         if (result?.text) {

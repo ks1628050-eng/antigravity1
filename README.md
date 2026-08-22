@@ -86,17 +86,34 @@ npm run build
 
 ### Cloud deployment
 
-Copy `.env.example` to `.env.local` and set the Supabase project URL and public anon key. Apply `supabase/migrations/20260822000000_initial_schema.sql` in the Supabase SQL editor, then deploy the function and configure its secrets:
+#### Vercel environment variables
 
-```bash
-supabase functions deploy ai-chat
-supabase secrets set GEMINI_API_KEY=your-server-key
-# or: supabase secrets set OPENAI_API_KEY=your-server-key
-supabase functions deploy payment
-supabase secrets set RAZORPAY_KEY_ID=your-key-id RAZORPAY_KEY_SECRET=your-server-secret
+In the Vercel project for `ks1628050-eng/antigravity1`, add these variables for **Production**, **Preview**, and **Development**:
+
+```text
+VITE_SUPABASE_URL=https://<project-ref>.supabase.co
+VITE_SUPABASE_ANON_KEY=<Supabase publishable anon key>
+VITE_RAZORPAY_KEY_ID=rzp_test_<Razorpay test key ID>
 ```
 
-When Supabase variables are present, Kedar AI requires authentication and syncs each user's workspace through RLS-protected storage. AI provider keys are read only by the Edge Function and are never stored in browser settings. Without Supabase variables, the local demo mode remains available.
+`VITE_OWNER_UPI_ID` is optional and only displays a direct UPI payment instruction. Never add `GEMINI_API_KEY`, `RAZORPAY_KEY_SECRET`, or any other private secret to Vercel frontend variables.
+
+#### Supabase setup
+
+Replace the project ID in `supabase/config.toml`, link the project, apply the migration, and deploy both authenticated functions:
+
+```bash
+supabase login
+supabase link --project-ref <project-ref>
+supabase db push
+supabase functions deploy ai-chat
+supabase functions deploy payment
+supabase secrets set GEMINI_API_KEY=<Gemini server key>
+supabase secrets set RAZORPAY_KEY_ID=rzp_test_<Razorpay test key ID>
+supabase secrets set RAZORPAY_KEY_SECRET=<Razorpay test secret>
+```
+
+Use the Supabase dashboard to enable Email authentication and configure the production site URL and redirect URLs to your Vercel domain. When Supabase variables are present, Kedar AI requires authentication and syncs each user's workspace through RLS-protected storage. Gemini and Razorpay secrets are read only by Edge Functions. Razorpay remains in TEST mode while `rzp_test_...` credentials are configured.
 
 ---
 
