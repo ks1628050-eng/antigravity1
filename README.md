@@ -92,6 +92,8 @@ Copy `.env.example` to `.env.local` and set the Supabase project URL and public 
 supabase functions deploy ai-chat
 supabase secrets set GEMINI_API_KEY=your-server-key
 # or: supabase secrets set OPENAI_API_KEY=your-server-key
+supabase functions deploy payment
+supabase secrets set RAZORPAY_KEY_ID=your-key-id RAZORPAY_KEY_SECRET=your-server-secret
 ```
 
 When Supabase variables are present, Kedar AI requires authentication and syncs each user's workspace through RLS-protected storage. AI provider keys are read only by the Edge Function and are never stored in browser settings. Without Supabase variables, the local demo mode remains available.

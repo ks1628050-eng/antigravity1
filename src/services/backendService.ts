@@ -63,5 +63,17 @@ export const backendService = {
     const { data, error } = await supabase.functions.invoke('ai-chat', { body: payload });
     if (error) throw error;
     return data as { text: string };
+  },
+  createPaymentOrder: async (amount: number, planName: string) => {
+    if (!supabase) throw new Error('Supabase is not configured.');
+    const { data, error } = await supabase.functions.invoke('payment', { body: { action: 'create-order', amount, planName } });
+    if (error) throw error;
+    return data as { orderId: string; amount: number; currency: string };
+  },
+  verifyPayment: async (payload: Record<string, string>) => {
+    if (!supabase) throw new Error('Supabase is not configured.');
+    const { data, error } = await supabase.functions.invoke('payment', { body: { action: 'verify', ...payload } });
+    if (error) throw error;
+    return data as { verified: boolean; paymentId: string };
   }
 };

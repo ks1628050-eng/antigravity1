@@ -5,6 +5,8 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useApp } from '../../context/AppContext';
+import { backendService } from '../../services/backendService';
+import { paymentService } from '../../services/paymentService';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -39,24 +41,35 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, p
     }
   };
 
-  const handleSimulatePayment = () => {
+  const handlePayment = async () => {
     setIsProcessing(true);
     showToast('Connecting to UPI / Payment Gateway...', 'info');
-
-    setTimeout(() => {
-      setIsProcessing(false);
-      setIsSuccess(true);
-      
-      // Update User Profile to PRO tier
-      updateProfile({
-        ...profile,
-        userTier: 'pro',
-        tierExpiresAt: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString()
+    try {
+      const order = await backendService.createPaymentOrder(finalPrice, plan.name);
+      paymentService.openRazorpayCheckout({
+        amount: finalPrice,
+        planName: plan.name,
+        customerName: profile.name,
+        customerEmail: profile.email,
+        orderId: order.orderId,
+        onSuccess: async (paymentId, paidOrderId, signature) => {
+          try {
+            const verification = await backendService.verifyPayment({ paymentId, orderId: paidOrderId, signature });
+            if (!verification.verified) throw new Error('Payment verification failed');
+            setIsSuccess(true);
+            updateProfile({ ...profile, userTier: 'pro', tierExpiresAt: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString() });
+            confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+            showToast('PRO Subscription Activated Successfully!', 'success');
+          } catch (error) {
+            showToast(error instanceof Error ? error.message : 'Payment verification failed', 'error');
+          } finally { setIsProcessing(false); }
+        },
+        onError: error => { setIsProcessing(false); showToast(error, 'error'); }
       });
-
-      confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
-      showToast('PRO Subscription Activated Successfully! 🚀', 'success');
-    }, 1600);
+    } catch (error) {
+      setIsProcessing(false);
+      showToast(error instanceof Error ? error.message : 'Unable to start payment', 'error');
+    }
   };
 
   return (
@@ -192,7 +205,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, p
 
             {/* Pay Button */}
             <button
-              onClick={handleSimulatePayment}
+              onClick={handlePayment}
               disabled={isProcessing}
               className="w-full py-3.5 rounded-2xl font-bold text-sm text-white bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 active:scale-98 disabled:opacity-50"
             >

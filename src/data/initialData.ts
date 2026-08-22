@@ -42,12 +42,12 @@ export const initialProfile: UserProfile = {
 
 export const initialReferralStats: ReferralStats = {
   referralCode: 'KEDAR-PRO99',
-  totalClicks: 248,
-  freeSignups: 42,
-  paidConversions: 18,
-  totalEarnings: 3600, // INR (₹200 commission per paid user)
-  pendingPayout: 1800,
-  upiId: 'kedar.swami@okaxis'
+  totalClicks: 0,
+  freeSignups: 0,
+  paidConversions: 0,
+  totalEarnings: 0,
+  pendingPayout: 0,
+  upiId: ''
 };
 
 export const initialTasks: TaskItem[] = [
