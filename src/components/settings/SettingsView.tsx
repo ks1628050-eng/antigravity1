@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { 
-  Settings, User, Key, Sliders, Database, 
+  Settings, User, Sliders, Database, 
   Download, Upload, RotateCcw, Check, Eye, EyeOff,
   Sparkles, ShieldCheck, Sun, Moon, Volume2
 } from 'lucide-react';
@@ -27,10 +27,8 @@ export const SettingsView: React.FC = () => {
 
   // AI settings state
   const [provider, setProvider] = useState<AISettings['provider']>(settings.provider);
-  const [apiKey, setApiKey] = useState(settings.apiKey);
   const [model, setModel] = useState(settings.model);
   const [temperature, setTemperature] = useState(settings.temperature);
-  const [showKey, setShowKey] = useState(false);
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,7 +52,7 @@ export const SettingsView: React.FC = () => {
     e.preventDefault();
     updateSettings({
       provider,
-      apiKey,
+      apiKey: '',
       model,
       temperature
     });
@@ -274,7 +272,7 @@ export const SettingsView: React.FC = () => {
         <div className="p-6 lg:p-8 rounded-3xl bg-slate-900/80 border border-slate-800 shadow-xl space-y-6">
           <div className="border-b border-slate-800 pb-4">
             <h3 className="font-display font-bold text-lg text-white">AI Engine & Model Provider</h3>
-            <p className="text-xs text-slate-400 mt-1">Connect your own API key for live real-time cloud LLMs or use the built-in smart offline intelligence engine.</p>
+            <p className="text-xs text-slate-400 mt-1">Choose a provider. Live model credentials are managed securely on the server; the offline engine remains available without an account.</p>
           </div>
 
           <form onSubmit={handleSaveAI} className="space-y-5">
@@ -309,25 +307,11 @@ export const SettingsView: React.FC = () => {
               <div className="space-y-4 pt-2">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    {provider === 'gemini' ? 'Google Gemini API Key' : 'OpenAI API Key'} *
+                    Server-side credentials
                   </label>
-                  <div className="relative">
-                    <input
-                      type={showKey ? 'text' : 'password'}
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      placeholder={provider === 'gemini' ? 'AIzaSy...' : 'sk-...'}
-                      className="w-full pl-4 pr-12 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-slate-100 outline-none focus:border-indigo-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowKey(!showKey)}
-                      className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300"
-                    >
-                      {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
+                  <div className="px-4 py-3 rounded-xl bg-emerald-950/30 border border-emerald-500/30 text-xs text-emerald-200">
+                    API keys are kept in Supabase Edge Function secrets and are never entered or stored in this browser.
                   </div>
-                  <p className="text-[11px] text-slate-500 mt-1">Keys are stored exclusively in your local browser storage and never sent to external servers.</p>
                 </div>
 
                 <div>

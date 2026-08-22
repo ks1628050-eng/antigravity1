@@ -1,4 +1,5 @@
 import { UserProfile, MemoryItem, AISettings, AgentTask, ResumeAnalysis } from '../types';
+import { backendService } from './backendService';
 
 export interface AIRequestContext {
   profile: UserProfile;
@@ -20,18 +21,16 @@ export const aiService = {
   ): Promise<string> => {
     const { settings, profile, memories } = context;
 
-    // Check if live API key is configured
-    if (settings.provider === 'gemini' && settings.apiKey) {
+    // Production requests go through the authenticated Supabase Edge Function.
+    if (backendService.isConfigured && settings.provider !== 'mock') {
       try {
-        return await callGeminiAPI(prompt, history, context, onChunk);
+        const result = await backendService.invokeAI({ prompt, history, context, provider: settings.provider, model: settings.model, temperature: settings.temperature });
+        if (result?.text) {
+          if (onChunk) await streamText(result.text, onChunk);
+          return result.text;
+        }
       } catch (err: any) {
-        console.warn('Gemini API call failed, falling back to smart offline brain:', err);
-      }
-    } else if (settings.provider === 'openai' && settings.apiKey) {
-      try {
-        return await callOpenAIAPI(prompt, history, context, onChunk);
-      } catch (err: any) {
-        console.warn('OpenAI API call failed, falling back to smart offline brain:', err);
+        console.warn('Secure AI request failed, falling back to smart offline brain:', err);
       }
     }
 
@@ -182,6 +181,16 @@ export const aiService = {
     };
   }
 };
+
+async function streamText(fullText: string, onChunk: (chunk: string) => void): Promise<void> {
+  const words = fullText.split(' ');
+  let current = '';
+  for (let i = 0; i < words.length; i++) {
+    current += (i === 0 ? '' : ' ') + words[i];
+    onChunk(current);
+    await new Promise(resolve => setTimeout(resolve, 12));
+  }
+}
 
 /**
  * Direct Google Gemini API Call

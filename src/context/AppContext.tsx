@@ -1,9 +1,11 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { Session } from '@supabase/supabase-js';
 import { 
   NavSection, UserProfile, TaskItem, MemoryItem, LearningRoadmap, 
   BusinessIdea, ContentPost, Conversation, ChatMessage, AISettings 
 } from '../types';
 import { storageService } from '../services/storageService';
+import { backendService } from '../services/backendService';
 
 interface AppContextType {
   currentSection: NavSection;
@@ -42,6 +44,11 @@ interface AppContextType {
   showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
   isMobileSidebarOpen: boolean;
   setIsMobileSidebarOpen: (open: boolean) => void;
+  session: Session | null;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string) => Promise<void>;
+  signOut: () => Promise<void>;
+  isCloudConfigured: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -63,6 +70,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [settings, setSettings] = useState<AISettings>(() => storageService.getSettings());
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
+  const [isBackendHydrated, setIsBackendHydrated] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
 
   // Sync theme
   useEffect(() => {
@@ -74,6 +83,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       document.documentElement.classList.remove('dark');
     }
   }, [settings.theme]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const hydrate = async () => {
+      try {
+        const session = await backendService.getSession();
+        setSession(session);
+        const workspace = session ? await backendService.loadWorkspace() : null;
+        if (cancelled) return;
+        if (workspace?.profile) setProfile(workspace.profile);
+        if (workspace?.tasks) setTasks(workspace.tasks);
+        if (workspace?.memories) setMemories(workspace.memories);
+        if (workspace?.roadmaps) setRoadmaps(workspace.roadmaps);
+        if (workspace?.conversations) setConversations(workspace.conversations);
+        if (workspace?.messages) setMessages(workspace.messages);
+        if (workspace?.businessIdeas) setBusinessIdeas(workspace.businessIdeas);
+        if (workspace?.contentPosts) setContentPosts(workspace.contentPosts);
+        if (workspace?.settings) setSettings({ ...workspace.settings, apiKey: '' });
+      } catch (error) {
+        console.warn('Cloud workspace unavailable; continuing with local data.', error);
+      } finally {
+        if (!cancelled) setIsBackendHydrated(true);
+      }
+    };
+    void hydrate();
+    return () => { cancelled = true; };
+  }, []);
+
+  const signIn = async (email: string, password: string) => {
+    await backendService.signIn(email, password);
+    setSession(await backendService.getSession());
+  };
+
+  const signUp = async (email: string, password: string) => {
+    await backendService.signUp(email, password);
+    setSession(await backendService.getSession());
+  };
+
+  const signOut = async () => {
+    await backendService.signOut();
+    setSession(null);
+  };
+
+  useEffect(() => {
+    if (!isBackendHydrated) return;
+    void backendService.saveWorkspace({
+      profile,
+      tasks,
+      memories,
+      roadmaps,
+      conversations,
+      messages,
+      businessIdeas,
+      contentPosts,
+      settings: { ...settings, apiKey: '' }
+    }).catch(error => console.warn('Cloud workspace sync failed.', error));
+  }, [isBackendHydrated, profile, tasks, memories, roadmaps, conversations, messages, businessIdeas, contentPosts, settings]);
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     setToast({ message, type });
@@ -233,7 +299,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (r.id === roadmapId) {
         const updatedModules = r.modules.map(m => {
           if (m.id === moduleId) {
-            return m;
+            const completedTopics = m.topics.map((topic, index) => {
+              if (index !== topicIndex) return topic;
+              return topic;
+            });
+            return { ...m, topics: completedTopics, completed: !m.completed };
           }
           return m;
         });
@@ -331,7 +401,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       toast,
       showToast,
       isMobileSidebarOpen,
-      setIsMobileSidebarOpen
+      setIsMobileSidebarOpen,
+      session,
+      signIn,
+      signUp,
+      signOut,
+      isCloudConfigured: backendService.isConfigured
     }}>
       {children}
     </AppContext.Provider>

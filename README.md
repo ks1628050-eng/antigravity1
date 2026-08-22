@@ -84,6 +84,18 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 npm run build
 ```
 
+### Cloud deployment
+
+Copy `.env.example` to `.env.local` and set the Supabase project URL and public anon key. Apply `supabase/migrations/20260822000000_initial_schema.sql` in the Supabase SQL editor, then deploy the function and configure its secrets:
+
+```bash
+supabase functions deploy ai-chat
+supabase secrets set GEMINI_API_KEY=your-server-key
+# or: supabase secrets set OPENAI_API_KEY=your-server-key
+```
+
+When Supabase variables are present, Kedar AI requires authentication and syncs each user's workspace through RLS-protected storage. AI provider keys are read only by the Edge Function and are never stored in browser settings. Without Supabase variables, the local demo mode remains available.
+
 ---
 
 ## 👤 Author

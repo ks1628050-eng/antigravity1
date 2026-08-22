@@ -19,9 +19,12 @@ import { BusinessView } from './components/business/BusinessView';
 import { AffiliateView } from './components/affiliate/AffiliateView';
 import { MemoryView } from './components/memory/MemoryView';
 import { SettingsView } from './components/settings/SettingsView';
+import { AuthView } from './components/auth/AuthView';
 
 const MainContent: React.FC = () => {
-  const { currentSection } = useApp();
+  const { currentSection, session, isCloudConfigured } = useApp();
+
+  if (isCloudConfigured && !session) return <AuthView />;
 
   return (
     <div className="flex min-h-screen bg-slate-950 text-slate-100 selection:bg-indigo-600 selection:text-white">
