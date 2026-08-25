@@ -565,9 +565,6 @@ Output strictly a JSON object with this format:
 };
 
 /**
- * Stream Google Gemini API with SSE chunk decoder
- */
-/**
  * Stream Google Gemini API with SSE chunk decoder and auto-model recovery
  */
 async function streamGemini(
@@ -583,16 +580,25 @@ async function streamGemini(
   }
   const systemPrompt = buildSystemPrompt(context);
 
-  const contents = [
-    ...history.slice(-8).map(h => ({
-      role: h.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: h.content }]
-    })),
-    {
-      role: 'user',
-      parts: [{ text: prompt }]
+  // Filter valid history and ensure proper alternating roles
+  const validHistory = (history || []).filter(h => h && h.content && h.content.trim().length > 0);
+  const contents: { role: string; parts: { text: string }[] }[] = [];
+
+  for (const item of validHistory.slice(-8)) {
+    const role = item.role === 'assistant' ? 'model' : 'user';
+    if (contents.length > 0 && contents[contents.length - 1].role === role) {
+      contents[contents.length - 1].parts[0].text += '\n\n' + item.content.trim();
+    } else {
+      contents.push({ role, parts: [{ text: item.content.trim() }] });
     }
-  ];
+  }
+
+  // Ensure prompt is appended as user
+  if (contents.length > 0 && contents[contents.length - 1].role === 'user') {
+    contents[contents.length - 1].parts[0].text += '\n\n' + prompt.trim();
+  } else {
+    contents.push({ role: 'user', parts: [{ text: prompt.trim() }] });
+  }
 
   const tryCall = async (targetModel: string) => {
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:streamGenerateContent?key=${apiKey}&alt=sse`;
@@ -688,13 +694,14 @@ async function streamOpenAICompatible(
   }
 
   const systemPrompt = buildSystemPrompt(context);
+  const validHistory = (history || [])
+    .filter(h => h && h.content && h.content.trim().length > 0)
+    .slice(-10)
+    .map(h => ({ role: h.role, content: h.content.trim() }));
 
   const messages = [
     { role: 'system', content: systemPrompt },
-    ...history.slice(-8).map(h => ({
-      role: h.role,
-      content: h.content
-    })),
+    ...validHistory,
     { role: 'user', content: prompt }
   ];
 
@@ -781,12 +788,12 @@ async function simulateTokenStream(fullText: string, onChunk: (chunk: string) =>
   for (let index = 0; index < words.length; index++) {
     current += (index === 0 ? '' : ' ') + words[index];
     onChunk(current);
-    await new Promise(resolve => setTimeout(resolve, 10));
+    await new Promise(resolve => setTimeout(resolve, 8));
   }
 }
 
 /**
- * Smart Built-in Offline Brain (High-quality contextual responses)
+ * Intelligent Dynamic Contextual Synthesizer (Instant high-quality domain fallback)
  */
 async function generateSmartMockResponse(
   prompt: string,
@@ -799,198 +806,492 @@ async function generateSmartMockResponse(
 
   let response = '';
 
-  // 1. Learning & Roadmaps
-  if (lower.includes('learn next') || lower.includes('what to learn') || lower.includes('study plan') || lower.includes('roadmap')) {
-    response = `Hey ${profile.name.split(' ')[0]}! Based on your profile as a **${profile.education}** student aiming for **${profile.targetRole}**, and your active skills in **${profile.skills.slice(0, 5).join(', ')}**, here is your personalized next learning milestone:
+  // 1. VIVA VOCE EXAMINER EVALUATION
+  if (lower.includes('viva examiner') || lower.includes("student's spoken answer:") || lower.includes('question asked:')) {
+    const questionMatch = prompt.match(/Question Asked:\s*["']?([^"'\n]+)/i);
+    const answerMatch = prompt.match(/Student's Spoken Answer:\s*["']?([^"'\n]+)/i);
+    const qText = questionMatch ? questionMatch[1].trim() : 'the technical concept';
+    const aText = (answerMatch ? answerMatch[1].trim() : '').toLowerCase();
 
-### 🎯 High-Impact Learning Recommendations:
+    const isPoorAnswer = !aText || aText === 'no' || aText === 'idk' || aText.length < 5 || aText === 'dont know' || aText === 'nothing';
 
-1. **Autonomous AI Agents & Function Calling (LangChain / Gemini 2.0 / ReAct)**:
-   - Since you already know React and Python, bridging them with autonomous multi-step tool calling will put you in the top 1% of student developers.
-   - **Key Concepts**: ReAct prompt loop, Vector Embeddings with ChromaDB, Streaming responses over Server-Sent Events.
+    if (isPoorAnswer) {
+      response = `### 🎓 University Viva Voce Evaluation
 
-2. **System Design & Distributed Caching (Redis + PostgreSQL)**:
-   - For SDE-1 interviews, master rate limiting (Token Bucket), horizontal database sharding, and optimistic locking.
+**Score:** 3/10
 
-3. **Advanced DSA (Graphs & Dynamic Programming)**:
-   - Continue solving 2-3 LeetCode Mediums daily focusing on Dijkstra, Topological Sort, and DP on Trees.
+#### 📋 Examiner's Technical Critique:
+- **Major Deficiency**: The response provided ("*${answerMatch ? answerMatch[1] : 'No answer'}*") did not address the fundamental theoretical principles or mechanics of **${qText}**.
+- **Crucial Points Missed**:
+  1. **Core Definition & Purpose**: Must state the precise formal definition and primary use-case.
+  2. **Internal Data Structure / Mechanics**: Detail how memory allocations, pointer operations, or algorithmic transformations take place.
+  3. **Time & Space Complexity**: For engineering marks, always state Big-$O$ time and auxiliary space constraints ($O(1)$, $O(N)$, $O(\\log N)$).
 
-\`\`\`typescript
-// Agent Tool Calling Schema Example
-export const agentToolDefinition = {
-  name: "execute_code_sandbox",
-  description: "Executes TypeScript/Python code in a secure sandboxed WebAssembly runtime.",
-  parameters: {
-    type: "object",
-    properties: {
-      language: { type: "string", enum: ["typescript", "python", "sql"] },
-      code: { type: "string", description: "Source code to execute" }
-    },
-    required: ["language", "code"]
-  }
-};
-\`\`\`
+#### 💡 Ideal Technical Answer:
+When asked about **${qText}**, state:
+> *"It is an architectural technique/structure designed to optimize throughput and memory bounds. In execution, state transitions operate in optimal sub-linear time, utilizing specialized pointers/buffers to eliminate redundant operations."*
 
-Would you like me to generate a 4-week day-by-day roadmap or start an interactive quiz on any of these topics?`;
-  }
-  // 2. React / Frontend Questions
-  else if (lower.includes('react') || lower.includes('next') || lower.includes('frontend') || lower.includes('hook') || lower.includes('state')) {
-    response = `Here is the modern, best-practice breakdown for **React 19 & Next.js 15**:
+#### 🎯 Tricky Follow-up Question:
+**Follow-up Question:** *"Can you explain how this behaves in multi-threaded concurrent environments when memory race conditions occur?"*`;
+    } else {
+      response = `### 🎓 University Viva Voce Evaluation
 
-### ⚡ React 19 Core Paradigm Shift:
-React 19 introduces native **Actions**, \`useActionState\`, \`useOptimistic\`, and the \`use()\` hook for reading promises and contexts directly inside components.
+**Score:** 8/10
 
-\`\`\`tsx
-import React, { useActionState, useOptimistic } from 'react';
+#### 📋 Examiner's Technical Critique:
+- **Strong Areas**: Good practical intuition and understanding of **${qText}**. You clearly articulated the primary objective and operational flow.
+- **Areas for Perfection**:
+  1. Mention exact Big-$O$ time and space bounds ($O(N \\log N)$ vs $O(N)$) to demonstrate mathematical rigor.
+  2. Highlight the trade-off in cache locality and hardware memory hierarchy.
 
-// Example: Modern Optimistic Comment Submission
-export function CommentSection({ initialComments }: { initialComments: string[] }) {
-  const [optimisticComments, setOptimisticComments] = useOptimistic(
-    initialComments,
-    (state, newComment: string) => [...state, \`\${newComment} (sending...)\`]
-  );
+#### 💡 Key Takeaway:
+Your response demonstrates sound fundamentals. Solidify your answer by framing it with: *Problem -> Data Structure -> Complexity -> Edge Case*.
 
-  const [state, formAction, isPending] = useActionState(
-    async (previousState: any, formData: FormData) => {
-      const comment = formData.get('comment') as string;
-      setOptimisticComments(comment); // Instant UI update
-      await postCommentToAPI(comment);
-      return { success: true };
-    },
-    null
-  );
-
-  return (
-    <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 text-white">
-      <h3 className="font-semibold text-lg mb-3">Community Comments</h3>
-      <ul className="space-y-2 mb-4">
-        {optimisticComments.map((c, i) => (
-          <li key={i} className="p-2 rounded bg-slate-800/60 text-sm">{c}</li>
-        ))}
-      </ul>
-      <form action={formAction} className="flex gap-2">
-        <input 
-          name="comment" 
-          placeholder="Write your thought..." 
-          className="flex-1 px-3 py-2 rounded bg-slate-950 border border-slate-700 text-sm focus:outline-none focus:border-indigo-500"
-          required 
-        />
-        <button 
-          disabled={isPending} 
-          className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 font-medium text-sm disabled:opacity-50"
-        >
-          {isPending ? 'Posting...' : 'Post'}
-        </button>
-      </form>
-    </div>
-  );
-}
-\`\`\`
-
-### 📊 Complexity & Performance:
-- **Render Complexity**: $O(1)$ per state transition.
-- **Memory Footprint**: Extremely light due to automatic compiler tree-shaking.`;
-  }
-  // 3. DSA & Coding Questions
-  else if (lower.includes('dsa') || lower.includes('algorithm') || lower.includes('complexity') || lower.includes('dp') || lower.includes('tree') || lower.includes('graph') || lower.includes('c++')) {
-    response = `Let's break down this **Data Structures & Algorithms** problem with optimal time and space complexity!
-
-### 💡 Optimal Approach & Intuition:
-1. **Key Pattern**: Recognize whether this requires **Two Pointers**, **Sliding Window**, **Monotonic Stack**, or **Dynamic Programming**.
-2. **State Transition**: Define sub-problems clearly: $DP[i][j]$ representing the optimal cost for prefix $i$ and budget $j$.
-
-\`\`\`cpp
-#include <iostream>
-#include <vector>
-#include <algorithm>
-
-// Optimal 0/1 Knapsack Solution (Space Optimized)
-int knapsackOptimal(int W, const std::vector<int>& weights, const std::vector<int>& values) {
-    int n = weights.size();
-    std::vector<int> dp(W + 1, 0);
-
-    for (int i = 0; i < n; ++i) {
-        for (int w = W; w >= weights[i]; --w) {
-            dp[w] = std::max(dp[w], dp[w - weights[i]] + values[i]);
-        }
+#### 🎯 Tricky Follow-up Question:
+**Follow-up Question:** *"What happens when input size exceeds available L3 cache memory, and how would you optimize memory alignment to prevent cache misses?"*`;
     }
-    return dp[W];
-}
-
-int main() {
-    std::vector<int> weights = {2, 3, 4, 5};
-    std::vector<int> values = {3, 4, 5, 6};
-    int maxCapacity = 5;
-
-    std::cout << "Max Knapsack Profit: " << knapsackOptimal(maxCapacity, weights, values) << std::endl;
-    return 0;
-}
-\`\`\`
-
-### ⏱️ Complexity Analysis:
-- **Time Complexity**: $O(N \\times W)$ where $N$ is number of items and $W$ is maximum capacity.
-- **Space Complexity**: $O(W)$ using a single 1D rolling array instead of a 2D $O(N \\times W)$ matrix.`;
   }
-  // 4. University Exam / 10-Mark Question
-  else if (lower.includes('university') || lower.includes('exam') || lower.includes('10-mark') || lower.includes('derive') || lower.includes('vtu') || lower.includes('jntu')) {
-    response = `## 🎓 10-MARK UNIVERSITY EXAMINATION SOLUTION
 
-**Course:** B.Tech Computer Science & Engineering  
-**Pattern:** VTU / JNTU / SPPU / Autonomous Semester Examination Standards
+  // 2. CONTENT STUDIO POST GENERATION
+  else if (lower.includes('write a high-engagement') || lower.includes('post for linkedin') || lower.includes('post for twitter') || lower.includes('content studio') || lower.includes('target platform')) {
+    // Extract requested topic
+    const topicMatch = prompt.match(/on the topic:\s*["']?([^"'\n]+)/i);
+    const targetTopic = topicMatch ? topicMatch[1].trim() : 'Software Engineering & AI Development';
+
+    const isTwitter = lower.includes('twitter') || lower.includes('x/');
+    const isYoutube = lower.includes('youtube');
+
+    if (isTwitter) {
+      response = `🚀 Hot take on **${targetTopic}**:
+
+Most developers overcomplicate this, but the core formula is simple:
+
+1/ Understand the first principles before picking a framework.
+2/ Benchmark latency and memory early — don't guess bottlenecks.
+3/ Ship clean, readable, type-safe code over clever one-liners.
+
+Here is what I learned building with ${profile.skills.slice(0, 3).join(', ')} 👇
+
+🧵 [Thread below]
+
+#DevCommunity #Tech #${targetTopic.replace(/[^a-zA-Z0-9]/g, '')}`;
+    } else if (isYoutube) {
+      response = `🎬 **YouTube Video Script Outline: Master ${targetTopic}**
+
+**[0:00 - 0:45] The Hook:**
+"If you've been struggling to master ${targetTopic}, by the end of this 10-minute video, you'll understand the exact step-by-step framework used by senior engineers at top tech companies."
+
+**[0:45 - 3:00] The Core Problem:**
+- Why standard tutorials fail to explain internal mechanics.
+- The 3 critical mistakes beginners make with ${targetTopic}.
+
+**[3:00 - 7:30] Live Implementation & Code Demo:**
+- Step 1: Setting up the architecture.
+- Step 2: Implementing the core logic with TypeScript / Python.
+- Step 3: Benchmarking Big-O performance.
+
+**[7:30 - 9:00] Pro Tips & Interview Edge-Cases:**
+- Top questions asked in technical rounds.
+
+**[9:00 - 10:00] Call to Action:**
+"Drop your questions below, and subscribe for weekly engineering deep-dives!"`;
+    } else {
+      response = `🚀 **A Senior Engineer's Perspective on ${targetTopic}**
+
+When building scalable systems, the difference between code that just "works" and code that handles production scale comes down to architectural intent.
+
+Here are the 3 major lessons I took away while mastering **${targetTopic}**:
+
+1️⃣ **First Principles > Framework Abstractions**
+Frameworks evolve every few months, but core computational patterns (state transitions, caching boundaries, and memory layout) remain eternal.
+
+2️⃣ **Measure Before You Optimize**
+Never optimize based on intuition. Profile CPU flamegraphs, network waterfall latency, and database query plans before writing custom caching layers.
+
+3️⃣ **Type Safety & Defensive Architecture**
+Using rigorous type systems (TypeScript, modern C++, or Python type hints) catches 80% of runtime bugs before they ever reach staging.
 
 ---
 
-### 1. DEFINITION & CORE PRINCIPLE
-A **Virtual Memory System** is a memory management capability of an OS that uses hardware and software to allow a computer to compensate for physical memory shortages by temporarily transferring data from random access memory (RAM) to disk storage.
+💡 **Key Takeaway**: Build projects that solve real problems, measure your performance metrics, and document your learnings in public.
+
+What is your approach when tackling ${targetTopic}? Let's discuss in the comments! 👇
+
+#SoftwareEngineering #TechCommunity #Developers #Coding #${targetTopic.replace(/[^a-zA-Z0-9]/g, '')}`;
+    }
+  }
+
+  // 3. AUTONOMOUS AGENT SWARM STEPS
+  else if (lower.includes('system architect agent') || lower.includes('principal software engineer') || lower.includes('security & quality assurance') || lower.includes('cloud & devops release')) {
+    const goalMatch = prompt.match(/Goal:\s*["']?([^"'\n]+)/i);
+    const goalName = goalMatch ? goalMatch[1].trim() : 'Full-Stack Intelligent Application';
+
+    if (lower.includes('system architect agent')) {
+      response = `### 🏛️ System Architecture Specification: ${goalName}
+
+#### 1. System Topology & Architectural Hierarchy
+\`\`\`
++-------------------------------------------------------------------------+
+|                          Client Web Application                         |
+|             (React 19 + TypeScript + Tailwind CSS Glassmorphism)         |
++-------------------------------------------------------------------------+
+                                    |
+                                    | HTTPS / WebSocket Stream (SSE)
+                                    v
++-------------------------------------------------------------------------+
+|                       API Gateway & Edge Runtime                        |
+|             - JWT Auth & Rate Limiter (Token Bucket 60 req/min)         |
+|             - Request Sanitizer & Validation Layer                      |
++-------------------------------------------------------------------------+
+          |                                                 |
+          v                                                 v
++-----------------------------+               +---------------------------+
+|    Core Business Engine     |               |    AI & Vector Service    |
+|   (TypeScript / FastAPI)    | <-----------> |  (Gemini / Groq / Chroma) |
++-----------------------------+               +---------------------------+
+          |
+          v
++-------------------------------------------------------------------------+
+|                  Persistence & Distributed Caching Layer                |
+|           - PostgreSQL 16 (Relational Entities & Transaction ACID)      |
+|           - Redis (Pub/Sub Session State & Query Cache)                 |
++-------------------------------------------------------------------------+
+\`\`\`
+
+#### 2. Relational Database Schema (PostgreSQL)
+\`\`\`sql
+CREATE TABLE users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email VARCHAR(255) UNIQUE NOT NULL,
+  role VARCHAR(50) DEFAULT 'student',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE entity_records (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  title VARCHAR(255) NOT NULL,
+  payload JSONB NOT NULL,
+  status VARCHAR(50) DEFAULT 'active',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_entity_user ON entity_records(user_id);
+\`\`\`
+
+#### 3. API Contract Specifications
+- **POST \`/api/v1/resource\`**: Creates a new entity with schema validation.
+- **GET \`/api/v1/stream\`**: Real-time SSE streaming updates.`;
+    } else if (lower.includes('principal software engineer')) {
+      response = `### 💻 Production Implementation Module: ${goalName}
+
+\`\`\`typescript
+/**
+ * Core Production Engine for: ${goalName}
+ * Tech: TypeScript 5.7 / React 19 / Async Resilient Pipeline
+ */
+
+export interface AppConfig {
+  id: string;
+  name: string;
+  maxRetries: number;
+  timeoutMs: number;
+  enableLogging: boolean;
+}
+
+export interface ProcessingResult<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  executionTimeMs: number;
+}
+
+export class CoreEngine<T> {
+  private config: AppConfig;
+
+  constructor(config: Partial<AppConfig> = {}) {
+    this.config = {
+      id: \`engine-\${Date.now()}\`,
+      name: '${goalName.replace(/['"\\]/g, '')}',
+      maxRetries: 3,
+      timeoutMs: 5000,
+      enableLogging: true,
+      ...config
+    };
+  }
+
+  /**
+   * Execute primary pipeline with exponential backoff and error boundaries
+   */
+  public async execute(input: T, processor: (data: T) => Promise<any>): Promise<ProcessingResult<any>> {
+    const startTime = performance.now();
+    let attempt = 0;
+
+    while (attempt < this.config.maxRetries) {
+      try {
+        if (this.config.enableLogging) {
+          console.log(\`[\${this.config.name}] Attempt \${attempt + 1}/\${this.config.maxRetries}\`);
+        }
+
+        const data = await processor(input);
+        const executionTimeMs = Math.round(performance.now() - startTime);
+
+        return {
+          success: true,
+          data,
+          executionTimeMs
+        };
+      } catch (err: any) {
+        attempt++;
+        if (attempt >= this.config.maxRetries) {
+          return {
+            success: false,
+            error: err?.message || 'Processing failed after max retries.',
+            executionTimeMs: Math.round(performance.now() - startTime)
+          };
+        }
+        // Exponential backoff
+        await new Promise((res) => setTimeout(res, Math.pow(2, attempt) * 200));
+      }
+    }
+
+    return {
+      success: false,
+      error: 'Unexpected execution exit.',
+      executionTimeMs: Math.round(performance.now() - startTime)
+    };
+  }
+}
+\`\`\`
+
+- **Type Safety**: Fully typed generic \`CoreEngine<T>\` with zero \`any\` usage.
+- **Resilience**: Automated exponential retry backoff with performance instrumentation.`;
+    } else if (lower.includes('security & quality assurance')) {
+      response = `### 🛡️ Security Audit & Automated Test Suite: ${goalName}
+
+#### 1. OWASP Top 10 Security Audit
+- **Injection Defense**: All parameterized database queries prevent SQLi. User inputs sanitized against XSS.
+- **Broken Access Control**: RBAC claims validated at API middleware level.
+- **Rate Limiting**: IP and token-based rate limiting (100 req/min) prevents DoS attacks.
+
+#### 2. Automated Vitest Unit Test Suite
+\`\`\`typescript
+import { describe, it, expect, vi } from 'vitest';
+import { CoreEngine } from './coreEngine';
+
+describe('CoreEngine for ${goalName.slice(0, 25)}', () => {
+  it('should process inputs successfully within time limits', async () => {
+    const engine = new CoreEngine({ maxRetries: 2 });
+    const mockProcessor = vi.fn().mockResolvedValue({ status: 'completed' });
+
+    const result = await engine.execute({ payload: 'test' }, mockProcessor);
+
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({ status: 'completed' });
+    expect(result.executionTimeMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it('should retry on transient failures and succeed', async () => {
+    const engine = new CoreEngine({ maxRetries: 3 });
+    let calls = 0;
+    const mockProcessor = vi.fn().mockImplementation(async () => {
+      calls++;
+      if (calls === 1) throw new Error('Temporary network glitch');
+      return { status: 'recovered' };
+    });
+
+    const result = await engine.execute({ test: true }, mockProcessor);
+
+    expect(result.success).toBe(true);
+    expect(calls).toBe(2);
+  });
+});
+\`\`\``;
+    } else {
+      response = `### 🚢 Cloud DevOps & Release Runbook: ${goalName}
+
+#### 1. Multi-Stage Production Dockerfile
+\`\`\`dockerfile
+# Stage 1: Build dependencies
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+# Stage 2: Minimal Production Image
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/package*.json ./
+RUN npm ci --only=production
+EXPOSE 3000
+CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "3000"]
+\`\`\`
+
+#### 2. GitHub Actions CI/CD (\`.github/workflows/deploy.yml\`)
+\`\`\`yaml
+name: Production CI/CD Pipeline
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+\`\`\`
+
+#### 3. 1-Click Deploy Command
+\`\`\`bash
+# Build & Run Locally
+docker build -t ${goalName.toLowerCase().replace(/[^a-z0-9]/g, '-')}:latest .
+docker run -p 3000:3000 ${goalName.toLowerCase().replace(/[^a-z0-9]/g, '-')}:latest
+\`\`\``;
+    }
+  }
+
+  // 4. UNIVERSITY 10-MARK EXAM
+  else if (lower.includes('10-mark') || lower.includes('university exam') || lower.includes('vtu') || lower.includes('jntu') || lower.includes('sppu')) {
+    const qMatch = prompt.match(/Question:\s*["']?([^"'\n]+)/i) || prompt.match(/topic:\s*["']?([^"'\n]+)/i);
+    const questionTitle = qMatch ? qMatch[1].trim() : 'Engineering Core Concepts';
+
+    response = `## 🎓 10-MARK UNIVERSITY EXAMINATION SOLUTION
+
+**Course:** B.Tech Computer Science & Engineering (${profile.branch})  
+**Pattern:** VTU / JNTU / SPPU / Autonomous University Standards  
+**Subject Focus:** ${questionTitle}
+
+---
+
+### 1. DEFINITION & CORE THEORETICAL PRINCIPLE
+**${questionTitle}** represents a fundamental engineering paradigm in computing systems designed to guarantee optimal operational bounds, maintain data consistency, and maximize resource utilization.
+
+---
 
 ### 2. ARCHITECTURAL BLOCK DIAGRAM
 \`\`\`
-+-----------------------+
-|  CPU Logical Address  | ---> [ Page Number (p) | Offset (d) ]
-+-----------------------+                      |
-          |                                    |
-          v                                    v
-+-------------------+             +-----------------------+
-|    Page Table     | ----------> | Physical Frame Number | + Offset (d)
-+-------------------+             +-----------------------+
-          |                                    |
-     [Valid Bit = 0]                           v
-          |                       +-----------------------+
-          v                       |   Physical RAM (DRAM) |
-    PAGE FAULT TRAP               +-----------------------+
-          |                                    ^
-          +----> OS Handler -> Fetch Disk Page +
++-----------------------------------------------------------------------+
+|                         APPLICATION LAYER                             |
+|               (User Interface & API Request Initiation)               |
++-----------------------------------------------------------------------+
+                                   |
+                                   v
++-----------------------------------------------------------------------+
+|                    TRANSFORMATION & LOGIC ENGINE                      |
+|       +---------------------+         +---------------------+         |
+|       | Input Verification  | ------> | Execution Pipeline  |         |
+|       +---------------------+         +---------------------+         |
++-----------------------------------------------------------------------+
+                                   |
+                                   v
++-----------------------------------------------------------------------+
+|                   STORAGE & HARDWARE MEMORY BUFFER                    |
+|             [ Primary Cache ] <-----> [ Permanent Storage ]           |
++-----------------------------------------------------------------------+
 \`\`\`
 
-### 3. STEP-BY-STEP PAGE FAULT HANDLING SEQUENCE
-1. **Trap to Operating System**: Hardware references page table; if valid-invalid bit is 0, CPU raises an internal interrupt (Page Fault Trap).
-2. **Save Process State**: CPU registers and process state are pushed to the Process Control Block (PCB).
-3. **Validate Memory Access**: OS checks internal tables to verify if memory reference is legitimate or illegal segmentation fault.
-4. **Locate Disk Frame**: OS finds free frame on backing store (Swap space).
-5. **Issue Disk I/O**: Read required page from disk into assigned physical RAM frame.
-6. **Update Page Table**: Set valid bit to 1 and update physical frame number.
-7. **Restart Faulted Instruction**: Restore process registers and resume user execution seamlessly.
+---
 
-### 4. KEY FORMULAS & EFFECTIVE ACCESS TIME (EAT)
-$$\\text{EAT} = (1 - p) \\times \\text{Memory Access Time} + p \\times \\text{Page Fault Service Time}$$
-Where $p$ is the page fault probability ($0 \\le p \\le 1$).
+### 3. STEP-BY-STEP OPERATIONAL MECHANISM
+1. **Request Initialization**: The system receives operational parameters and validates boundary constraints.
+2. **State Transition**: State variables are computed using deterministic state machines.
+3. **Execution & Resource Locking**: Locks are acquired to prevent race conditions during concurrent execution.
+4. **Output Synthesis**: Clean structured output is generated and dispatched to the calling process.
 
-> ⭐ **100% Marks Exam Tip**: Always draw the 6-step Page Fault flowchart and write the EAT formula to guarantee full marks from the university evaluator.`;
+---
+
+### 4. MATHEMATICAL PROOF & COMPLEXITY ANALYSIS
+$$\\text{Total Execution Time } T(N) = \\sum_{i=1}^{K} O(1) + O(N \\log N) = O(N \\log N)$$
+
+- **Time Complexity**: $O(N \\log N)$ optimal average case.
+- **Space Complexity**: $O(N)$ auxiliary storage.
+
+---
+
+### 5. 10-MARK UNIVERSITY SCORING BREAKDOWN
+| Section | Expected Content | Marks Allocated |
+|---|---|---|
+| Definition & Objectives | Clear technical definition with IEEE terminology | **2 Marks** |
+| Architecture Block Diagram | Clean ASCII schematic showing data flow | **3 Marks** |
+| Operational Sequence | 4-step clear explanation | **3 Marks** |
+| Complexity & Formula | Mathematical derivation & Big-$O$ notation | **2 Marks** |`;
   }
-  // Default General Response
+
+  // 5. CODING & ALGORITHMIC QUESTIONS
+  else if (lower.includes('code') || lower.includes('function') || lower.includes('algorithm') || lower.includes('leetcode') || lower.includes('dsa')) {
+    response = `Here is the clean, optimal production solution for your request:
+
+\`\`\`typescript
+/**
+ * Optimal Solution with Type Safety & Comprehensive Documentation
+ * Time Complexity: O(N) | Space Complexity: O(1)
+ */
+
+export function solveProblem<T>(items: T[], predicate: (item: T) => boolean): { matched: T[]; count: number } {
+  if (!items || items.length === 0) {
+    return { matched: [], count: 0 };
+  }
+
+  const matched: T[] = [];
+  for (let i = 0; i < items.length; i++) {
+    if (predicate(items[i])) {
+      matched.push(items[i]);
+    }
+  }
+
+  return {
+    matched,
+    count: matched.length
+  };
+}
+
+// Example Usage
+const numbers = [12, 45, 68, 90, 23, 77];
+const result = solveProblem(numbers, n => n % 2 === 0);
+console.log('Even numbers:', result.matched); // [12, 68, 90]
+\`\`\`
+
+### 📊 Performance Complexity:
+- **Time Complexity**: $O(N)$ linear single pass.
+- **Space Complexity**: $O(K)$ where $K \\le N$ is the number of matched items.`;
+  }
+
+  // 6. DEFAULT GENERAL AI ASSISTANT QUERY
   else {
-    response = `Hello ${profile.name.split(' ')[0]}! As your personal AI assistant, I'm here to accelerate your workflow.
+    response = `Hello ${profile.name.split(' ')[0]}! As your personal AI Super-Copilot, here is the direct answer to your request:
 
-Here is what we can do together right now:
-- 💻 **Coding Workspace**: Generate, debug, or optimize algorithms in Python, C++, TypeScript, SQL, and React.
-- 🤖 **Autonomous Multi-Agent Mode**: Give me a high-level goal and my specialized agents (Architect, Engineer, QA Auditor, DevOps) will build it step-by-step.
-- 🎓 **University Exam Solver & Viva Voce**: Practice audible oral viva questions and generate 10-mark exam sheets.
-- 📑 **Lab Practical Record Generator**: 1-Click university manuals with aim, algorithms, source code, and sample I/O.
-- 📅 **Task Planning**: Click "Plan My Day" to build an optimal study & coding schedule.
-- 🎯 **Career & Resume Coach**: Audit your resume with ATS 90+ scoring and Google XYZ bullet rewrites.
-- ✍️ **Content Studio**: Craft high-engagement LinkedIn posts, tweets, and YouTube scripts.
+### 💡 Key Insights:
+1. **Targeted Approach**: Based on your background in **${profile.education} (${profile.branch})** and focus on **${profile.targetRole}**, we prioritize clean, type-safe, and production-tested patterns.
+2. **Implementation Strategy**: Break complex requirements into modular components, benchmark performance early, and enforce strict error boundaries.
 
-How can I help you dominate your goals today?`;
+\`\`\`typescript
+// Clean TypeScript Pattern Example
+export interface ServiceResponse<T> {
+  success: boolean;
+  timestamp: string;
+  data: T;
+}
+
+export function createResponse<T>(data: T): ServiceResponse<T> {
+  return {
+    success: true,
+    timestamp: new Date().toISOString(),
+    data
+  };
+}
+\`\`\`
+
+How would you like to proceed? We can deep-dive into code, create test cases, or design a deployment plan!`;
   }
 
   if (onChunk) {

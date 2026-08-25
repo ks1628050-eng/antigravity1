@@ -209,7 +209,7 @@ Format strictly with standard college headings:
 
           <div 
             className="markdown-content text-sm text-slate-200 leading-relaxed bg-slate-950 p-6 rounded-2xl border border-slate-800/80"
-            dangerouslySetInnerHTML={{ __html: marked.parse(labRecord) as string }}
+            dangerouslySetInnerHTML={{ __html: (marked.parse(labRecord || '', { async: false }) as string) || labRecord }}
           />
         </div>
       )}

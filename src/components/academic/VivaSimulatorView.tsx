@@ -5,6 +5,7 @@ import {
   Bot, AlertCircle, ShieldCheck
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { marked } from 'marked';
 import { useApp } from '../../context/AppContext';
 import { speechService } from '../../services/speechService';
 import { aiService } from '../../services/aiService';
@@ -304,9 +305,12 @@ Provide:
 
             <div className="text-xs text-slate-300 leading-relaxed space-y-2">
               <p className="font-semibold text-purple-300">👨‍🏫 Examiner's Technical Critique:</p>
-              <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-200">
-                {feedback.critique}
-              </div>
+              <div 
+                className="p-4 rounded-xl bg-slate-900 border border-slate-800 text-slate-200 markdown-content text-xs leading-relaxed space-y-2"
+                dangerouslySetInnerHTML={{ 
+                  __html: (marked.parse(feedback.critique || '', { async: false }) as string) || feedback.critique 
+                }}
+              />
             </div>
           </div>
         )}

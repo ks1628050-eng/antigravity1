@@ -87,7 +87,9 @@ export const ChatView: React.FC = () => {
     });
 
     try {
-      const history = activeMessages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+      const history = activeMessages
+        .filter(m => m.content && m.content.trim().length > 0 && m.id !== assistantMsg.id)
+        .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content.trim() }));
       
       const response = await aiService.generateChatResponse(
         textToSend,
@@ -157,8 +159,10 @@ export const ChatView: React.FC = () => {
   };
 
   const renderMarkdown = (content: string) => {
+    if (!content) return { __html: '' };
     try {
-      return { __html: marked.parse(content) as string };
+      const parsed = marked.parse(content, { async: false }) as string;
+      return { __html: parsed || content };
     } catch (e) {
       return { __html: content };
     }

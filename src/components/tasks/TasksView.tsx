@@ -147,7 +147,7 @@ export const TasksView: React.FC = () => {
 
           <div 
             className="markdown-content text-sm text-slate-200 leading-relaxed overflow-x-auto"
-            dangerouslySetInnerHTML={{ __html: marked.parse(dailyPlan) as string }}
+            dangerouslySetInnerHTML={{ __html: (marked.parse(dailyPlan || '', { async: false }) as string) || dailyPlan }}
           />
         </div>
       )}

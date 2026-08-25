@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { speechService } from '../../services/speechService';
+import { getApiKey } from '../../services/aiService';
 import { PricingModal } from '../monetization/PricingModal';
 import { CheckoutModal } from '../monetization/CheckoutModal';
 
@@ -98,10 +99,14 @@ export const Header: React.FC = () => {
           <div 
             onClick={() => setCurrentSection('settings')}
             className="cursor-pointer hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-900/90 hover:bg-slate-850 border border-slate-700/60 text-slate-300 transition-colors shadow-sm"
+            title="Click to configure AI Models & API Keys"
           >
-            <div className={`w-2 h-2 rounded-full ${settings.provider !== 'mock' ? 'bg-emerald-400 animate-pulse' : 'bg-indigo-400'}`} />
-            <span className="font-mono">
-              {settings.provider === 'gemini' ? 'Gemini' : 'Smart Offline Brain'}
+            <div className={`w-2 h-2 rounded-full ${getApiKey(settings.provider, settings) ? 'bg-emerald-400 animate-pulse' : 'bg-indigo-400'}`} />
+            <span className="font-mono text-xs font-semibold text-slate-200">
+              {settings.provider === 'gemini' ? 'Google Gemini' : settings.provider === 'groq' ? 'Groq Cloud' : settings.provider === 'openai' ? 'OpenAI' : settings.provider === 'openrouter' ? 'OpenRouter' : 'Smart Offline Brain'}
+            </span>
+            <span className="text-[10px] text-slate-400 font-mono hidden lg:inline">
+              ({settings.model || 'gemini-2.5-flash'})
             </span>
           </div>
 

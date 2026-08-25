@@ -331,7 +331,7 @@ export const AgentView: React.FC = () => {
                     {activeTask.steps[selectedStepIndex].output ? (
                       <div 
                         className="markdown-content text-xs sm:text-sm text-slate-200 leading-relaxed bg-slate-950 p-4 rounded-xl border border-slate-800/80 overflow-x-auto max-h-[500px] overflow-y-auto"
-                        dangerouslySetInnerHTML={{ __html: marked.parse(activeTask.steps[selectedStepIndex].output!) as string }}
+                        dangerouslySetInnerHTML={{ __html: (marked.parse(activeTask.steps[selectedStepIndex].output || '', { async: false }) as string) || activeTask.steps[selectedStepIndex].output! }}
                       />
                     ) : activeTask.steps[selectedStepIndex].status === 'pending' ? (
                       <div className="py-12 text-center text-xs text-slate-500 font-mono">
@@ -413,7 +413,7 @@ export const AgentView: React.FC = () => {
 
               <div 
                 className="markdown-content text-xs sm:text-sm text-slate-200 leading-relaxed bg-slate-950 p-6 rounded-xl border border-slate-800/80 max-h-[600px] overflow-y-auto"
-                dangerouslySetInnerHTML={{ __html: marked.parse(activeTask.finalResult) as string }}
+                dangerouslySetInnerHTML={{ __html: (marked.parse(activeTask.finalResult || '', { async: false }) as string) || activeTask.finalResult }}
               />
             </div>
           )}

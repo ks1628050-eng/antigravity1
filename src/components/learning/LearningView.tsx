@@ -295,7 +295,7 @@ Format with:
             <div className="p-6 rounded-2xl bg-slate-900/70 border border-slate-800/80 backdrop-blur-xl">
               <div 
                 className="markdown-content text-sm text-slate-200 leading-relaxed bg-slate-950 p-6 rounded-xl border border-slate-800/80"
-                dangerouslySetInnerHTML={{ __html: marked.parse(explanationResult) as string }}
+                dangerouslySetInnerHTML={{ __html: (marked.parse(explanationResult || '', { async: false }) as string) || explanationResult }}
               />
             </div>
           )}

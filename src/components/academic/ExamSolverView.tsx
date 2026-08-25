@@ -228,7 +228,7 @@ Format Requirements:
 
           <div 
             className="markdown-content text-sm text-slate-200 leading-relaxed bg-slate-950 p-6 rounded-2xl border border-slate-800/80"
-            dangerouslySetInnerHTML={{ __html: marked.parse(solution) as string }}
+            dangerouslySetInnerHTML={{ __html: (marked.parse(solution || '', { async: false }) as string) || solution }}
           />
         </div>
       )}
