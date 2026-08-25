@@ -332,10 +332,15 @@ export const initialBusinessIdeas: BusinessIdea[] = [
 ];
 
 export const initialSettings: AISettings = {
-  provider: 'mock',
+  provider: 'gemini',
   model: 'gemini-2.0-flash',
   temperature: 0.7,
   theme: 'dark',
   autoSaveMemory: true,
-  voiceSynthesis: true
+  voiceSynthesis: true,
+  geminiApiKey: '',
+  groqApiKey: '',
+  openaiApiKey: '',
+  openrouterApiKey: '',
+  customSystemPrompt: 'You are Kedar AI, an elite autonomous AI super-copilot and academic mentor designed for engineering students, developers, and builders.'
 };

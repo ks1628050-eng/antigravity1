@@ -8,7 +8,7 @@ import { aiService } from '../../services/aiService';
 import { ResumeAnalysis } from '../../types';
 
 export const CareerView: React.FC = () => {
-  const { profile, showToast } = useApp();
+  const { profile, memories, settings, showToast } = useApp();
   
   const [resumeText, setResumeText] = useState(`KEDAR SWAMI
 Computer Science Engineering (AI & Data Science)
@@ -40,7 +40,7 @@ Campus Connect — Student Collaboration Portal
     showToast('AI is performing deep ATS keyword & impact audit...', 'info');
 
     try {
-      const result = await aiService.analyzeResume(resumeText, profile.targetRole);
+      const result = await aiService.analyzeResume(resumeText, profile.targetRole, { profile, memories, settings });
       setAnalysis(result);
       showToast('Resume audit completed with ATS Score!', 'success');
     } catch (err) {

@@ -133,16 +133,26 @@ Provide:
         { profile, memories, settings }
       );
 
-      // Extract realistic score
-      let score = 8;
-      const lower = spokenAnswer.toLowerCase();
-      const matched = currentQ.expectedKeywords.filter(k => lower.includes(k.toLowerCase()));
-      score = Math.max(5, Math.min(10, Math.round(5 + (matched.length / currentQ.expectedKeywords.length) * 5)));
+      // Extract realistic score from LLM response or calculate from keyword match
+      let score = 7;
+      const scoreMatch = result.match(/score:?\s*(\d+)/i) || result.match(/(\d+)\s*\/\s*10/i);
+      if (scoreMatch && scoreMatch[1]) {
+        score = parseInt(scoreMatch[1], 10);
+      } else {
+        const lower = spokenAnswer.toLowerCase();
+        const matched = currentQ.expectedKeywords.filter(k => lower.includes(k.toLowerCase()));
+        score = Math.max(4, Math.min(10, Math.round(4 + (matched.length / Math.max(1, currentQ.expectedKeywords.length)) * 6)));
+      }
+      score = Math.min(10, Math.max(1, score));
+
+      // Extract follow-up question
+      const followUpMatch = result.match(/follow[- ]?up.*?:?\s*([^\n]+)/i);
+      const followUp = followUpMatch ? followUpMatch[1].trim() : 'Can you explain the real-world trade-off in high concurrency environments?';
 
       setFeedback({
         score,
         critique: result,
-        followUp: 'Can you explain the exact memory overhead associated with this in 64-bit architectures?'
+        followUp
       });
 
       if (score >= 8) {

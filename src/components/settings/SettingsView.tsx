@@ -3,12 +3,14 @@ import {
   Settings, User, Sliders, Database, 
   Download, Upload, RotateCcw, Check, Eye, EyeOff,
   Sparkles, ShieldCheck, Copy, ExternalLink, AlertCircle,
-  IndianRupee, Key, QrCode, Smartphone
+  IndianRupee, Key, QrCode, Smartphone, Zap, CheckCircle2,
+  Loader2, Cpu
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { storageService } from '../../services/storageService';
-import { UserProfile, AISettings } from '../../types';
+import { UserProfile, AISettings, AIProvider } from '../../types';
 import { paymentService } from '../../services/paymentService';
+import { aiService, getApiKey } from '../../services/aiService';
 
 export const SettingsView: React.FC = () => {
   const { profile, updateProfile, settings, updateSettings, showToast } = useApp();
@@ -29,10 +31,24 @@ export const SettingsView: React.FC = () => {
   const [upiId, setUpiId] = useState((profile as any).upiId || '');
 
   // AI settings state
-  const [provider, setProvider] = useState<AISettings['provider']>(settings.provider);
-  const [model, setModel] = useState(settings.model);
-  const [temperature, setTemperature] = useState(settings.temperature);
-  const [showKeyInstructions, setShowKeyInstructions] = useState(false);
+  const [provider, setProvider] = useState<AIProvider>(settings.provider || 'gemini');
+  const [model, setModel] = useState(settings.model || 'gemini-2.0-flash');
+  const [temperature, setTemperature] = useState(settings.temperature ?? 0.7);
+  const [geminiApiKey, setGeminiApiKey] = useState(settings.geminiApiKey || '');
+  const [groqApiKey, setGroqApiKey] = useState(settings.groqApiKey || '');
+  const [openaiApiKey, setOpenaiApiKey] = useState(settings.openaiApiKey || '');
+  const [openrouterApiKey, setOpenrouterApiKey] = useState(settings.openrouterApiKey || '');
+  const [customPrompt, setCustomPrompt] = useState(settings.customSystemPrompt || '');
+
+  // Key Visibility
+  const [showGeminiKey, setShowGeminiKey] = useState(false);
+  const [showGroqKey, setShowGroqKey] = useState(false);
+  const [showOpenaiKey, setShowOpenaiKey] = useState(false);
+  const [showOpenrouterKey, setShowOpenrouterKey] = useState(false);
+
+  // Key Verification States
+  const [isTestingKey, setIsTestingKey] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string; latency?: number } | null>(null);
 
   const envUPI = (import.meta as any).env?.VITE_OWNER_UPI_ID as string || '';
   const activeUPI = upiId || envUPI;
@@ -40,13 +56,61 @@ export const SettingsView: React.FC = () => {
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
-    const updated = { ...profile, name, email, education, branch, college, currentSemester: semester, targetRole, skills: skillsStr.split(',').map(s => s.trim()).filter(Boolean), currentProjects: projectsStr.split(',').map(p => p.trim()).filter(Boolean), bio, upiId } as any;
+    const updated = { 
+      ...profile, 
+      name, 
+      email, 
+      education, 
+      branch, 
+      college, 
+      currentSemester: semester, 
+      targetRole, 
+      skills: skillsStr.split(',').map(s => s.trim()).filter(Boolean), 
+      currentProjects: projectsStr.split(',').map(p => p.trim()).filter(Boolean), 
+      bio, 
+      upiId 
+    } as any;
     updateProfile(updated);
   };
 
   const handleSaveAI = (e: React.FormEvent) => {
     e.preventDefault();
-    updateSettings({ provider, model, temperature });
+    updateSettings({ 
+      provider, 
+      model, 
+      temperature, 
+      geminiApiKey, 
+      groqApiKey, 
+      openaiApiKey, 
+      openrouterApiKey,
+      customSystemPrompt: customPrompt
+    });
+    showToast('AI Settings & API keys saved to local vault!', 'success');
+  };
+
+  const handleTestConnection = async () => {
+    setIsTestingKey(true);
+    setTestResult(null);
+    showToast(`Testing live connection to ${provider.toUpperCase()}...`, 'info');
+
+    const activeKey = provider === 'gemini' ? geminiApiKey 
+      : provider === 'groq' ? groqApiKey 
+      : provider === 'openai' ? openaiApiKey 
+      : openrouterApiKey;
+
+    const result = await aiService.testAPIConnection(provider, activeKey, model);
+    setIsTestingKey(false);
+    setTestResult({
+      success: result.success,
+      message: result.message,
+      latency: result.latencyMs
+    });
+
+    if (result.success) {
+      showToast(`Connection Verified! (${result.latencyMs}ms)`, 'success');
+    } else {
+      showToast(`Test Failed: ${result.message}`, 'error');
+    }
   };
 
   const handleExportData = () => {
@@ -86,6 +150,32 @@ export const SettingsView: React.FC = () => {
     }
   };
 
+  const modelPresets: Record<string, { model: string; label: string; desc: string }[]> = {
+    gemini: [
+      { model: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', desc: 'Next-gen lightning speed, multimodal & real-time' },
+      { model: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', desc: 'Enhanced reasoning, low latency & deep context' },
+      { model: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro', desc: 'Complex reasoning, 2M token context, deep code math' },
+      { model: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash', desc: 'Fast, cost-efficient, 1M token window' }
+    ],
+    groq: [
+      { model: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile', desc: 'Ultra-fast 800+ tokens/sec, near-GPT-4 intelligence' },
+      { model: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant', desc: 'Sub-100ms response time, excellent for quick chat' },
+      { model: 'deepseek-r1-distill-llama-70b', label: 'DeepSeek R1 Distill 70B', desc: 'Advanced step-by-step mathematical reasoning' }
+    ],
+    openai: [
+      { model: 'gpt-4o', label: 'GPT-4o Flagship', desc: 'High intelligence, comprehensive coding depth' },
+      { model: 'gpt-4o-mini', label: 'GPT-4o Mini', desc: 'Fast, efficient, high accuracy' },
+      { model: 'o3-mini', label: 'o3-mini Reasoning', desc: 'STEM and coding logic specialist' }
+    ],
+    openrouter: [
+      { model: 'deepseek/deepseek-r1', label: 'DeepSeek R1', desc: 'Open reasoning powerhouse with transparent thinking' },
+      { model: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet', desc: 'Benchmark coding & architectural generation' }
+    ],
+    mock: [
+      { model: 'smart-offline-brain', label: 'Smart Contextual Brain', desc: 'Pre-loaded student knowledge, zero API key required' }
+    ]
+  };
+
   return (
     <div className="p-4 lg:p-8 max-w-5xl mx-auto space-y-8 animate-fadeIn">
       
@@ -94,11 +184,11 @@ export const SettingsView: React.FC = () => {
         <div className="space-y-2">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-semibold border border-indigo-500/30">
             <Settings className="w-3.5 h-3.5" />
-            <span>Preferences & Credentials</span>
+            <span>Preferences & API Credentials</span>
           </div>
           <h2 className="text-2xl lg:text-3xl font-display font-bold text-white">System Settings & Profile</h2>
           <p className="text-slate-300 text-sm max-w-xl">
-            Configure your AI keys, customize your personal student profile, and manage data backups.
+            Configure real AI models (Google Gemini, Groq, OpenAI, OpenRouter), enter custom API keys, customize your personal student profile, and manage data backups.
           </p>
         </div>
 
@@ -112,7 +202,7 @@ export const SettingsView: React.FC = () => {
                 activeTab === tab ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              {tab === 'ai' ? 'AI & API Keys' : tab === 'business' ? '💰 Payments' : tab}
+              {tab === 'ai' ? '🤖 AI Models & Keys' : tab === 'business' ? '💰 Payments' : tab === 'data' ? '💾 Backup & Data' : '👤 Profile'}
             </button>
           ))}
         </div>
@@ -262,101 +352,278 @@ export const SettingsView: React.FC = () => {
       {/* 2. AI MODELS & KEYS TAB */}
       {activeTab === 'ai' && (
         <div className="p-6 lg:p-8 rounded-3xl bg-slate-900/80 border border-slate-800 shadow-xl space-y-6">
-          <div className="border-b border-slate-800 pb-4">
-            <h3 className="font-display font-bold text-lg text-white">AI Engine & API Keys</h3>
-            <p className="text-xs text-slate-400 mt-1">Configure which AI powers your assistant. Provider credentials are stored only in Supabase Edge Function secrets.</p>
-          </div>
-
-          {/* Key Status Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="p-4 rounded-2xl border space-y-2 bg-slate-950 border-slate-800">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-indigo-400" />
-                  <span className="text-xs font-bold text-white">Google Gemini</span>
-                </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-500">Server secret</span>
-              </div>
-              <p className="text-[11px] text-slate-400">Free tier: 1,500 req/day • Best for students</p>
-            </div>
-            <div className="p-4 rounded-2xl border space-y-2 bg-slate-950 border-slate-800">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-purple-400" />
-                  <span className="text-xs font-bold text-white">Gemini server function</span>
-                </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-500">Server secret</span>
-              </div>
-              <p className="text-[11px] text-slate-400">$5 free credit for new accounts</p>
-            </div>
-          </div>
-
-          {/* Setup Instructions */}
-          <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
-            <div className="flex items-center gap-2">
-              <Key className="w-4 h-4 text-amber-400" />
-              <span className="text-xs font-bold text-white">How to Add Your API Key</span>
-            </div>
-            <ol className="text-[11px] text-slate-400 space-y-1.5 list-decimal list-inside leading-relaxed">
-              <li>Get a free Gemini API key from <a href="https://aistudio.google.com" target="_blank" className="text-indigo-400 font-mono">aistudio.google.com</a></li>
-              <li>Create a file called <code className="font-mono text-amber-300">.env</code> in your project root folder (next to package.json)</li>
-              <li>Set <code className="font-mono text-emerald-300">GEMINI_API_KEY</code> as a Supabase Edge Function secret.</li>
-              <li>Deploy the <code className="font-mono text-indigo-300">ai-chat</code> function and select Gemini below.</li>
-            </ol>
-          </div>
-
-          <form onSubmit={handleSaveAI} className="space-y-5">
+          <div className="border-b border-slate-800 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-2">Active AI Provider</label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <h3 className="font-display font-bold text-lg text-white">AI Engine & Multi-Model Credentials</h3>
+              <p className="text-xs text-slate-400 mt-1">Configure direct browser API keys or choose from fast inference providers. Keys are stored safely in local storage.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                ✓ Client Streaming Ready
+              </span>
+            </div>
+          </div>
+
+          <form onSubmit={handleSaveAI} className="space-y-6">
+            
+            {/* Provider Selection Cards */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-2.5">Select Active LLM Provider</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {[
-                  { id: 'mock', label: '🧠 Smart Offline Brain', desc: 'No key needed. Always available.', active: true },
-                  { id: 'gemini', label: '✨ Google Gemini', desc: 'Requires server-side Gemini secret', active: true },
+                  { id: 'gemini', label: 'Google Gemini', badge: 'Recommended', desc: 'Gemini 2.5 / 2.0 Flash & Pro models', color: 'border-indigo-500/40 text-indigo-400' },
+                  { id: 'groq', label: 'Groq Cloud', badge: 'Ultra Fast', desc: 'Llama 3.3 70B & DeepSeek R1 Distill', color: 'border-amber-500/40 text-amber-400' },
+                  { id: 'openai', label: 'OpenAI', badge: 'GPT-4o', desc: 'GPT-4o, GPT-4o-mini, o3-mini', color: 'border-emerald-500/40 text-emerald-400' },
+                  { id: 'openrouter', label: 'OpenRouter', badge: 'Multi-LLM', desc: 'DeepSeek-R1, Claude 3.5, Gemini', color: 'border-purple-500/40 text-purple-400' },
                 ].map((p) => (
                   <div
                     key={p.id}
-                    onClick={() => setProvider(p.id as any)}
-                    className={`p-4 rounded-2xl border cursor-pointer transition-all space-y-1.5 ${
+                    onClick={() => {
+                      setProvider(p.id as any);
+                      const defaultModel = modelPresets[p.id]?.[0]?.model || 'gemini-2.0-flash';
+                      setModel(defaultModel);
+                    }}
+                    className={`p-4 rounded-2xl border cursor-pointer transition-all space-y-1.5 relative ${
                       provider === p.id 
-                        ? 'bg-indigo-950/50 border-indigo-500 text-white shadow-lg'
+                        ? 'bg-indigo-950/60 border-indigo-500 text-white shadow-xl shadow-indigo-950/50'
                         : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <h4 className="font-semibold text-sm text-slate-100">{p.label}</h4>
+                      <h4 className="font-semibold text-xs text-slate-100">{p.label}</h4>
                       {provider === p.id && <Check className="w-4 h-4 text-indigo-400" />}
                     </div>
-                    <p className="text-[11px] text-slate-400">{p.desc}</p>
-                    <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${p.active ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-500'}`}>
-                      {p.active ? '✓ Ready' : 'Needs Setup'}
+                    <p className="text-[11px] text-slate-400 leading-tight">{p.desc}</p>
+                    <span className={`inline-block text-[9px] font-bold px-2 py-0.5 rounded-full mt-1 bg-slate-900 border border-slate-800 ${p.color}`}>
+                      {p.badge}
                     </span>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">Model Name</label>
-              <input
-                type="text"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                placeholder="gemini-1.5-flash"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-slate-100 outline-none focus:border-indigo-500"
-              />
-              <p className="text-[11px] text-slate-500 mt-1">Gemini models: gemini-2.0-flash (fast) or gemini-1.5-pro (smarter).</p>
+            {/* Provider API Key Inputs */}
+            <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
+              
+              {/* Gemini Key */}
+              {provider === 'gemini' && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                      <Key className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>Google Gemini API Key</span>
+                    </label>
+                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-[11px] text-indigo-400 hover:underline flex items-center gap-1">
+                      Get Free Key <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showGeminiKey ? 'text' : 'password'}
+                      value={geminiApiKey}
+                      onChange={(e) => setGeminiApiKey(e.target.value)}
+                      placeholder="AIzaSy... (or set VITE_GEMINI_API_KEY)"
+                      className="w-full pl-3.5 pr-10 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono text-slate-100 outline-none focus:border-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowGeminiKey(!showGeminiKey)}
+                      className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300"
+                    >
+                      {showGeminiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-500">Free tier: 1,500 requests/day. Leave blank to use smart offline engine.</p>
+                </div>
+              )}
+
+              {/* Groq Key */}
+              {provider === 'groq' && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                      <Key className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Groq API Key (Free & Ultra Fast)</span>
+                    </label>
+                    <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer" className="text-[11px] text-amber-400 hover:underline flex items-center gap-1">
+                      Get Free Groq Key <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showGroqKey ? 'text' : 'password'}
+                      value={groqApiKey}
+                      onChange={(e) => setGroqApiKey(e.target.value)}
+                      placeholder="gsk_... (or set VITE_GROQ_API_KEY)"
+                      className="w-full pl-3.5 pr-10 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono text-slate-100 outline-none focus:border-amber-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowGroqKey(!showGroqKey)}
+                      className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300"
+                    >
+                      {showGroqKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-500">Free tier: 30 requests/minute. Blazing fast inference (800+ tokens/sec).</p>
+                </div>
+              )}
+
+              {/* OpenAI Key */}
+              {provider === 'openai' && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                      <Key className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>OpenAI API Key</span>
+                    </label>
+                    <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer" className="text-[11px] text-emerald-400 hover:underline flex items-center gap-1">
+                      Get Key <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showOpenaiKey ? 'text' : 'password'}
+                      value={openaiApiKey}
+                      onChange={(e) => setOpenaiApiKey(e.target.value)}
+                      placeholder="sk-proj-... (or set VITE_OPENAI_API_KEY)"
+                      className="w-full pl-3.5 pr-10 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono text-slate-100 outline-none focus:border-emerald-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowOpenaiKey(!showOpenaiKey)}
+                      className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300"
+                    >
+                      {showOpenaiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* OpenRouter Key */}
+              {provider === 'openrouter' && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                      <Key className="w-3.5 h-3.5 text-purple-400" />
+                      <span>OpenRouter API Key</span>
+                    </label>
+                    <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" className="text-[11px] text-purple-400 hover:underline flex items-center gap-1">
+                      Get Key <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showOpenrouterKey ? 'text' : 'password'}
+                      value={openrouterApiKey}
+                      onChange={(e) => setOpenrouterApiKey(e.target.value)}
+                      placeholder="sk-or-v1-... (or set VITE_OPENROUTER_API_KEY)"
+                      className="w-full pl-3.5 pr-10 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono text-slate-100 outline-none focus:border-purple-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowOpenrouterKey(!showOpenrouterKey)}
+                      className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300"
+                    >
+                      {showOpenrouterKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Live Connection Test Button */}
+              <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-800/80">
+                <button
+                  type="button"
+                  onClick={handleTestConnection}
+                  disabled={isTestingKey}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 transition-colors disabled:opacity-50"
+                >
+                  {isTestingKey ? <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400" /> : <Zap className="w-3.5 h-3.5 text-amber-400" />}
+                  <span>{isTestingKey ? 'Pinging API...' : 'Test & Verify Connection'}</span>
+                </button>
+
+                {testResult && (
+                  <div className={`text-xs flex items-center gap-2 ${testResult.success ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {testResult.success ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                    <span>{testResult.message} {testResult.latency ? `(${testResult.latency}ms)` : ''}</span>
+                  </div>
+                )}
+              </div>
             </div>
 
+            {/* Model Presets & Selection */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-2">Model Selection</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                {(modelPresets[provider] || modelPresets.gemini).map((preset) => (
+                  <div
+                    key={preset.model}
+                    onClick={() => setModel(preset.model)}
+                    className={`p-3.5 rounded-xl border cursor-pointer transition-all space-y-1 ${
+                      model === preset.model
+                        ? 'bg-indigo-950/40 border-indigo-500 text-white'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-xs text-slate-200">{preset.label}</span>
+                      {model === preset.model && <Check className="w-3.5 h-3.5 text-indigo-400" />}
+                    </div>
+                    <p className="text-[10px] text-slate-500">{preset.desc}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-2">
+                <input
+                  type="text"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  placeholder="Or enter custom model ID..."
+                  className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-slate-200 outline-none focus:border-indigo-500"
+                />
+              </div>
+            </div>
+
+            {/* Temperature Slider */}
             <div>
               <div className="flex justify-between text-xs font-semibold text-slate-300 mb-1.5">
                 <span>Creativity / Temperature</span>
                 <span className="font-mono text-indigo-400">{temperature}</span>
               </div>
-              <input type="range" min="0.1" max="1.0" step="0.1" value={temperature} onChange={(e) => setTemperature(parseFloat(e.target.value))} className="w-full accent-indigo-500" />
+              <input 
+                type="range" 
+                min="0.1" 
+                max="1.0" 
+                step="0.1" 
+                value={temperature} 
+                onChange={(e) => setTemperature(parseFloat(e.target.value))} 
+                className="w-full accent-indigo-500" 
+              />
+              <div className="flex justify-between text-[10px] text-slate-500 mt-1">
+                <span>Precise & Deterministic (0.1)</span>
+                <span>Balanced (0.7)</span>
+                <span>Creative & Novel (1.0)</span>
+              </div>
+            </div>
+
+            {/* Custom System Prompt */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">Custom System Instruction (Optional)</label>
+              <textarea
+                rows={3}
+                value={customPrompt}
+                onChange={(e) => setCustomPrompt(e.target.value)}
+                placeholder="Customize the default personality and instructions..."
+                className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 outline-none resize-none leading-relaxed focus:border-indigo-500"
+              />
             </div>
 
             <div className="flex justify-end pt-4 border-t border-slate-800">
-              <button type="submit" className="px-6 py-2.5 rounded-xl font-semibold text-xs text-white bg-indigo-600 hover:bg-indigo-500 shadow-md shadow-indigo-600/20">
+              <button 
+                type="submit" 
+                className="px-6 py-2.5 rounded-xl font-semibold text-xs text-white bg-indigo-600 hover:bg-indigo-500 shadow-md shadow-indigo-600/20"
+              >
                 Save AI Settings
               </button>
             </div>
@@ -447,52 +714,52 @@ export const SettingsView: React.FC = () => {
         </div>
       )}
 
-      {/* 3. DATA BACKUP TAB */}
+      {/* 4. DATA BACKUP TAB */}
       {activeTab === 'data' && (
         <div className="p-6 lg:p-8 rounded-3xl bg-slate-900/80 border border-slate-800 shadow-xl space-y-6">
           <div className="border-b border-slate-800 pb-4">
-            <h3 className="font-display font-bold text-lg text-white">Data Management & Portability</h3>
-            <p className="text-xs text-slate-400 mt-1">Export your entire Kedar AI brain, restore previous backups, or reset to factory demo state.</p>
+            <h3 className="font-display font-bold text-lg text-white">Data Management & Full Offline Backup</h3>
+            <p className="text-xs text-slate-400 mt-1">Export all your stored memories, tasks, conversations, and custom settings as a portable JSON file.</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
-              <h4 className="font-semibold text-sm text-white flex items-center gap-2">
-                <Download className="w-4 h-4 text-emerald-400" />
-                <span>Export Backup</span>
-              </h4>
-              <p className="text-xs text-slate-400">Download a full JSON file containing tasks, memories, roadmaps, chats, and business blueprints.</p>
+            <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-3 flex flex-col justify-between">
+              <div>
+                <Download className="w-6 h-6 text-indigo-400 mb-2" />
+                <h4 className="font-bold text-sm text-white">Export Backup</h4>
+                <p className="text-xs text-slate-400 mt-1">Download complete JSON snapshot of all your data.</p>
+              </div>
               <button
                 onClick={handleExportData}
-                className="w-full py-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 font-semibold text-xs transition-colors"
+                className="w-full py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white shadow-md"
               >
-                Download JSON
+                Export JSON
               </button>
             </div>
 
-            <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
-              <h4 className="font-semibold text-sm text-white flex items-center gap-2">
-                <Upload className="w-4 h-4 text-indigo-400" />
-                <span>Restore Backup</span>
-              </h4>
-              <p className="text-xs text-slate-400">Upload a previously exported JSON backup file to restore all your stored context.</p>
-              <label className="block w-full text-center py-2.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 font-semibold text-xs transition-colors cursor-pointer">
-                Upload Backup File
+            <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-3 flex flex-col justify-between">
+              <div>
+                <Upload className="w-6 h-6 text-emerald-400 mb-2" />
+                <h4 className="font-bold text-sm text-white">Restore Backup</h4>
+                <p className="text-xs text-slate-400 mt-1">Load previously exported JSON backup file.</p>
+              </div>
+              <label className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-white text-center cursor-pointer block">
+                <span>Select File</span>
                 <input type="file" accept=".json" onChange={handleImportData} className="hidden" />
               </label>
             </div>
 
-            <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
-              <h4 className="font-semibold text-sm text-white flex items-center gap-2">
-                <RotateCcw className="w-4 h-4 text-rose-400" />
-                <span>Reset to Defaults</span>
-              </h4>
-              <p className="text-xs text-slate-400">Restore the original initial state with curated demo tasks, memories, and learning roadmaps.</p>
+            <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-3 flex flex-col justify-between">
+              <div>
+                <RotateCcw className="w-6 h-6 text-red-400 mb-2" />
+                <h4 className="font-bold text-sm text-white">Reset System</h4>
+                <p className="text-xs text-slate-400 mt-1">Restore factory demo data and reset all tables.</p>
+              </div>
               <button
                 onClick={handleResetData}
-                className="w-full py-2.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 font-semibold text-xs transition-colors"
+                className="w-full py-2 rounded-xl bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-500/30 text-xs font-semibold"
               >
-                Reset Database
+                Reset to Default
               </button>
             </div>
           </div>

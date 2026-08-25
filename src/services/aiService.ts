@@ -1,4 +1,4 @@
-import { UserProfile, MemoryItem, AISettings, AgentTask, ResumeAnalysis } from '../types';
+import { UserProfile, MemoryItem, AISettings, ResumeAnalysis, AIProvider, BusinessIdea } from '../types';
 import { backendService } from './backendService';
 
 export interface AIRequestContext {
@@ -9,10 +9,153 @@ export interface AIRequestContext {
   category?: string;
 }
 
+/**
+ * Get active API key for a provider from settings or Vite environment variables
+ */
+export function getApiKey(provider: AIProvider, settings?: AISettings): string {
+  const env = (import.meta as any).env || {};
+  if (provider === 'gemini') {
+    return (settings?.geminiApiKey || env.VITE_GEMINI_API_KEY || '').trim();
+  }
+  if (provider === 'groq') {
+    return (settings?.groqApiKey || env.VITE_GROQ_API_KEY || '').trim();
+  }
+  if (provider === 'openai') {
+    return (settings?.openaiApiKey || env.VITE_OPENAI_API_KEY || '').trim();
+  }
+  if (provider === 'openrouter') {
+    return (settings?.openrouterApiKey || env.VITE_OPENROUTER_API_KEY || '').trim();
+  }
+  return '';
+}
+
+/**
+ * Build personalized system prompt injecting student profile and stored memories
+ */
+export function buildSystemPrompt(context: AIRequestContext): string {
+  const { profile, memories, settings, systemRole } = context;
+  const memContext = memories.length > 0 
+    ? `\n\nUSER MEMORIES & STORED CONTEXT:\n${memories.map(m => `- [${m.category.toUpperCase()}] ${m.content}`).join('\n')}`
+    : '';
+
+  const defaultRole = `You are Kedar AI, an elite autonomous AI super-copilot and academic mentor designed for engineering students, developers, and builders.
+You assist ${profile.name}, a ${profile.education} student in ${profile.branch} at ${profile.college} (${profile.currentSemester}), aiming for ${profile.targetRole}.
+Key Technical Stack: ${profile.skills.join(', ')}.
+Current Active Projects: ${profile.currentProjects.join(', ')}.
+Preferred Learning Style: ${profile.preferredLearningStyle}.
+Goals: ${profile.longTermGoals.join('; ')}.
+
+Guidelines:
+1. Provide production-grade, highly structured, syntactically correct code (TypeScript, Python, C++, SQL, React) with clear explanations.
+2. For university exam queries (VTU/JNTU/SPPU formats), generate standard 2-mark or 10-mark answers with ASCII block diagrams, step-by-step math derivations, and scoring rubrics.
+3. For viva voce and mock interviews, give rigorous, professional feedback with score out of 10 and keyword checks.
+4. Format all responses with clean Markdown, bold headers, and syntax-highlighted code fences.`;
+
+  return (systemRole || settings.customSystemPrompt || defaultRole) + memContext;
+}
+
 export const aiService = {
   /**
-   * Main chat completion with streaming token support.
-  * Priority: Supabase Edge Function → Smart Offline Brain
+   * Test an API Key connection with a fast verification ping
+   */
+  testAPIConnection: async (
+    provider: AIProvider,
+    apiKey: string,
+    model?: string
+  ): Promise<{ success: boolean; message: string; latencyMs: number }> => {
+    const start = Date.now();
+    const testPrompt = 'Respond with exact word "OK" only.';
+
+    try {
+      if (provider === 'gemini') {
+        const targetModel = model || 'gemini-2.0-flash';
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: testPrompt }] }],
+            generationConfig: { maxOutputTokens: 10 }
+          })
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData?.error?.message || `HTTP ${res.status}: ${res.statusText}`);
+        }
+        return { success: true, message: `Connected to Google Gemini (${targetModel})`, latencyMs: Date.now() - start };
+      }
+
+      if (provider === 'groq') {
+        const targetModel = model || 'llama-3.3-70b-versatile';
+        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: targetModel,
+            messages: [{ role: 'user', content: testPrompt }],
+            max_tokens: 10
+          })
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData?.error?.message || `HTTP ${res.status}: ${res.statusText}`);
+        }
+        return { success: true, message: `Connected to Groq (${targetModel})`, latencyMs: Date.now() - start };
+      }
+
+      if (provider === 'openai') {
+        const targetModel = model || 'gpt-4o-mini';
+        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: targetModel,
+            messages: [{ role: 'user', content: testPrompt }],
+            max_tokens: 10
+          })
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData?.error?.message || `HTTP ${res.status}: ${res.statusText}`);
+        }
+        return { success: true, message: `Connected to OpenAI (${targetModel})`, latencyMs: Date.now() - start };
+      }
+
+      if (provider === 'openrouter') {
+        const targetModel = model || 'deepseek/deepseek-r1';
+        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: targetModel,
+            messages: [{ role: 'user', content: testPrompt }],
+            max_tokens: 10
+          })
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData?.error?.message || `HTTP ${res.status}: ${res.statusText}`);
+        }
+        return { success: true, message: `Connected to OpenRouter (${targetModel})`, latencyMs: Date.now() - start };
+      }
+
+      return { success: true, message: 'Smart Offline Brain is active.', latencyMs: 5 };
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Connection failed', latencyMs: Date.now() - start };
+    }
+  },
+
+  /**
+   * Main chat completion with real streaming token support
    */
   generateChatResponse: async (
     prompt: string,
@@ -21,78 +164,175 @@ export const aiService = {
     onChunk?: (chunk: string) => void
   ): Promise<string> => {
     const { settings } = context;
+    const provider = settings.provider || 'gemini';
+    const apiKey = getApiKey(provider, settings);
 
-    // 1. Supabase Edge Function (most secure — API keys stay server-side)
-    if (backendService.isConfigured && settings.provider === 'gemini') {
+    // 1. Direct Google Gemini REST API (with SSE streaming)
+    if (provider === 'gemini' && apiKey) {
       try {
-        const result = await backendService.invokeAI({ prompt, history, context, provider: settings.provider, model: settings.model, temperature: settings.temperature });
-        if (result?.text) {
-          if (onChunk) await streamText(result.text, onChunk);
-          return result.text;
-        }
+        return await streamGemini(prompt, history, context, apiKey, onChunk);
       } catch (err: any) {
-        console.warn('Supabase AI call failed, using offline brain:', err);
+        console.warn('Gemini API call failed, attempting fallback:', err);
+        if (onChunk) onChunk(`⚠️ [Gemini notice: ${err.message} — Switching to smart fallback]\n\n`);
       }
     }
 
-    // Smart Built-in Offline Brain (always available, zero cost)
+    // 2. Direct Groq API (Ultra-Fast Llama 3.3 70B / DeepSeek R1)
+    if (provider === 'groq' && apiKey) {
+      try {
+        return await streamOpenAICompatible('https://api.groq.com/openai/v1/chat/completions', apiKey, settings.model || 'llama-3.3-70b-versatile', prompt, history, context, onChunk);
+      } catch (err: any) {
+        console.warn('Groq API call failed:', err);
+      }
+    }
+
+    // 3. Direct OpenAI API (GPT-4o / GPT-4o-mini / o3-mini)
+    if (provider === 'openai' && apiKey) {
+      try {
+        return await streamOpenAICompatible('https://api.openai.com/v1/chat/completions', apiKey, settings.model || 'gpt-4o-mini', prompt, history, context, onChunk);
+      } catch (err: any) {
+        console.warn('OpenAI API call failed:', err);
+      }
+    }
+
+    // 4. Direct OpenRouter API (DeepSeek-R1 / Claude 3.5 Sonnet)
+    if (provider === 'openrouter' && apiKey) {
+      try {
+        return await streamOpenAICompatible('https://openrouter.ai/api/v1/chat/completions', apiKey, settings.model || 'deepseek/deepseek-r1', prompt, history, context, onChunk);
+      } catch (err: any) {
+        console.warn('OpenRouter API call failed:', err);
+      }
+    }
+
+    // 5. Supabase Edge Function (if chosen)
+    if (provider === 'supabase' && backendService.isConfigured) {
+      try {
+        const result = await backendService.invokeAI({ prompt, history, context, provider: 'gemini', model: settings.model, temperature: settings.temperature });
+        if (result?.text) {
+          if (onChunk) await simulateTokenStream(result.text, onChunk);
+          return result.text;
+        }
+      } catch (err: any) {
+        console.warn('Supabase AI call failed:', err);
+      }
+    }
+
+    // 6. Smart Built-in Offline Brain (Instant, zero cost, resilient fallback)
     return await generateSmartMockResponse(prompt, history, context, onChunk);
   },
 
   /**
-   * Autonomous Agent Plan & Execute
+   * Resume Analyzer Engine with real LLM evaluation
    */
-  generateAgentPlan: async (
-    goal: string,
-    context: AIRequestContext
-  ): Promise<AgentTask> => {
-    const taskId = `task-${Date.now()}`;
-    const lower = goal.toLowerCase();
+  analyzeResume: async (
+    resumeText: string,
+    targetRole: string,
+    context?: AIRequestContext
+  ): Promise<ResumeAnalysis> => {
+    const prompt = `Act as a Tier-1 Silicon Valley Technical Recruiter and ATS Algorithm.
+Audit the following resume targeting the role: "${targetRole || 'Full Stack AI Engineer'}".
 
-    let steps = [
-      { id: 'step-1', title: 'Goal Analysis & Scope Definition', description: `Analyze requirements for: "${goal}" considering Kedar's stack (${context.profile.skills.slice(0, 4).join(', ')}).`, status: 'completed' as const, output: 'Architecture & technical boundaries mapped successfully.' },
-      { id: 'step-2', title: 'System Architecture & Tech Stack Selection', description: 'Determine optimal database schema, API contracts, and component hierarchy.', status: 'completed' as const, output: 'Selected Next.js 15, TypeScript, Tailwind CSS, PostgreSQL/Supabase.' },
-      { id: 'step-3', title: 'Core Implementation & Code Generation', description: 'Synthesizing production-grade code modules, error handlers, and state management.', status: 'in_progress' as const },
-      { id: 'step-4', title: 'Validation, Edge-Case Auditing & Testing', description: 'Checking edge cases, time complexity, security tokens, and responsive UI.', status: 'pending' as const },
-      { id: 'step-5', title: 'Final Deliverable Packaging & Deployment Guide', description: 'Generate deployment commands, environment setup, and verification checklists.', status: 'pending' as const },
-    ];
+Resume Text:
+"""
+${resumeText}
+"""
 
-    if (lower.includes('portfolio') || lower.includes('website')) {
-      steps = [
-        { id: 's1', title: 'Analyze Portfolio Goals & Personal Brand', description: `Extract Kedar's core achievements (${context.profile.targetRole}, projects, skills).`, status: 'completed' as const, output: 'Identified key sections: Hero with 3D glow, Project Showcase, Interactive Resume, Live Terminal, Contact Form.' },
-        { id: 's2', title: 'Design System & Component Tree', description: 'Configure dark cyber-minimal theme, glassmorphism tokens, and responsive layout grid.', status: 'completed' as const, output: 'UI Kit configured with Tailwind and Lucide icons.' },
-        { id: 's3', title: 'Frontend Code Generation', description: 'Create HeroSection.tsx, ProjectsGrid.tsx, and ExperienceTimeline.tsx.', status: 'completed' as const, output: 'Clean TypeScript components with Framer Motion animations.' },
-        { id: 's4', title: 'SEO, Performance & Lighthouse Audit', description: 'Add OpenGraph metadata, fast asset loading, and semantic HTML5 tags.', status: 'completed' as const, output: 'Lighthouse score estimated at 99/100.' },
-        { id: 's5', title: 'Vercel Deployment & Domain Setup', description: 'Generate vercel.json, build command scripts, and GitHub CI workflow.', status: 'completed' as const, output: 'Ready for 1-click deployment to Vercel/Netlify.' }
-      ];
+You MUST respond strictly with a valid JSON object without any markdown wrapping or backticks. Format:
+{
+  "overallScore": <number between 40 and 95>,
+  "summary": "<2 sentence executive verdict>",
+  "detectedSkills": ["<skill1>", "<skill2>", ...],
+  "missingSkills": ["<critical missing skill 1>", "<critical missing skill 2>", ...],
+  "strengths": ["<strength 1>", "<strength 2>", "<strength 3>"],
+  "weakSections": ["<weakness 1>", "<weakness 2>"],
+  "improvementSuggestions": ["<actionable advice 1>", "<actionable advice 2>", "<actionable advice 3>"],
+  "rewrittenBullets": [
+    {
+      "before": "<a weak line from the resume>",
+      "after": "<rewritten line using Google XYZ formula: Accomplished [X] measured by [Y] by doing [Z]>",
+      "reason": "<why this improves ATS score>"
+    },
+    {
+      "before": "<another weak bullet from the resume>",
+      "after": "<rewritten bullet with metrics and technical depth>",
+      "reason": "<why this converts recruiters>"
+    }
+  ]
+}`;
+
+    if (context) {
+      try {
+        const rawJson = await aiService.generateChatResponse(prompt, [], { ...context, systemRole: 'You are an ATS resume parsing API that outputs strictly valid JSON without explanation.' });
+        const cleanJson = rawJson.replace(/```json/g, '').replace(/```/g, '').trim();
+        const parsed = JSON.parse(cleanJson);
+        if (parsed.overallScore && parsed.summary) {
+          return {
+            id: `resume-${Date.now()}`,
+            overallScore: Math.min(98, Math.max(45, parsed.overallScore)),
+            summary: parsed.summary,
+            detectedSkills: parsed.detectedSkills || [],
+            missingSkills: parsed.missingSkills || [],
+            strengths: parsed.strengths || [],
+            weakSections: parsed.weakSections || [],
+            improvementSuggestions: parsed.improvementSuggestions || [],
+            rewrittenBullets: parsed.rewrittenBullets || [],
+            createdAt: new Date().toISOString()
+          };
+        }
+      } catch (e) {
+        console.warn('LLM resume JSON parse fallback:', e);
+      }
     }
 
+    // Dynamic intelligent fallback based on text content
+    let score = 72;
+    const lower = resumeText.toLowerCase();
+    const techKeywords = ['react', 'next.js', 'typescript', 'python', 'fastapi', 'c++', 'sql', 'postgresql', 'docker', 'git', 'api', 'aws', 'rest', 'tailwind', 'algorithms', 'data structures', 'gemini', 'langchain'];
+    const matchedSkills = techKeywords.filter(keyword => lower.includes(keyword));
+    const missingSkills = ['Redis / Distributed Caching', 'CI/CD Pipelines (GitHub Actions)', 'System Design / Microservices', 'Unit & Integration Testing (Jest/Vitest)', 'Docker Containerization & Kubernetes'].filter(skill => !lower.includes(skill.toLowerCase().split(' ')[0]));
+    if (matchedSkills.length > 5) score += 12;
+    if (lower.includes('metric') || lower.includes('%') || lower.includes('increased') || lower.includes('reduced') || lower.includes('ms') || lower.includes('latency')) score += 8;
+    score = Math.min(score, 94);
+
     return {
-      id: taskId,
-      goal,
-      category: lower.includes('code') || lower.includes('build') ? 'Engineering' : 'Productivity',
-      steps,
-      status: 'completed',
-      finalResult: `### 🚀 Autonomous Agent Execution Report for: "${goal}"
-
-**Target Goal:** ${goal}  
-**Lead Engineer:** ${context.profile.name}  
-**Primary Stack:** ${context.profile.skills.slice(0, 6).join(', ')}
-
----
-
-### 📦 Key Deliverables Generated:
-1. **System Blueprint**: Modular component architecture with decoupled state management.
-2. **Production Code**: Type-safe TypeScript interfaces and resilient error boundaries.
-3. **Deployment Strategy**: 1-click CI/CD configuration for Vercel with zero-cold-start performance.
-
-> 💡 **Next Action for Kedar**: Review the generated code files in the Coding Assistant tab or copy the starter architecture snippet below!`,
+      id: `resume-${Date.now()}`,
+      overallScore: score,
+      summary: `Your resume shows strong foundational engineering and hands-on project experience for a **${targetRole || 'Full Stack / AI Engineer'}** role. Adding quantitative metrics will boost ATS ranking into the 90th percentile.`,
+      detectedSkills: matchedSkills.map(skill => skill.toUpperCase()),
+      missingSkills: missingSkills.slice(0, 4),
+      strengths: [
+        'Solid modern web development stack (React, TypeScript, Backend APIs)',
+        'Hands-on project experience solving practical engineering problems',
+        'Strong problem-solving foundation in data structures & algorithms',
+        'Clean section hierarchy suitable for automated ATS parsing'
+      ],
+      weakSections: [
+        'Project bullet points need measurable quantitative business impact (e.g. % faster, ms latency, # of users).',
+        'Production testing (Vitest/Jest) and automated CI/CD are not prominently highlighted.'
+      ],
+      improvementSuggestions: [
+        'Apply the Google XYZ Formula: "Accomplished [X] as measured by [Y], by doing [Z]" to every project bullet.',
+        'Categorize technical skills into Languages, Frameworks, Databases, and Developer Tools.',
+        'Include live deployed URL links and GitHub repository badges for each project.'
+      ],
+      rewrittenBullets: [
+        {
+          before: 'Built an AI assistant web app using React and Gemini API.',
+          after: 'Architected and deployed a multi-tenant AI copilot with React 19 and TypeScript, reducing client-side response latency by 45% using Server-Sent Events token streaming.',
+          reason: 'Quantifies technical ownership, architectural decisions, and measurable latency reduction.'
+        },
+        {
+          before: 'Worked on database queries and backend APIs.',
+          after: 'Engineered high-throughput REST endpoints and optimized PostgreSQL queries with composite indexing, reducing P95 database query latency from 320ms to 85ms.',
+          reason: 'Demonstrates backend depth, database tuning, and real performance metrics.'
+        }
+      ],
       createdAt: new Date().toISOString()
     };
   },
 
   /**
-   * Plan My Day Engine
+   * Plan My Day Engine with real LLM synthesis
    */
   generateDailySchedule: async (
     tasks: any[],
@@ -100,6 +340,19 @@ export const aiService = {
   ): Promise<string> => {
     const pendingHigh = tasks.filter(t => !t.isCompleted && t.priority === 'high');
     const pendingMed = tasks.filter(t => !t.isCompleted && t.priority === 'medium');
+
+    const prompt = `Synthesize an optimal, time-blocked Daily Productive Schedule for ${context.profile.name}.
+Active Tasks on Board:
+${tasks.map(t => `- [${t.priority.toUpperCase()}] ${t.title} (${t.category}) - Deadline: ${t.deadline} - Completed: ${t.isCompleted}`).join('\n')}
+
+Format as a high-yield timetable with time slots from 08:30 AM to 09:30 PM, Deep Work Blocks, Active Rest, and a key productivity principle.`;
+
+    try {
+      const schedule = await aiService.generateChatResponse(prompt, [], context);
+      if (schedule && schedule.length > 100) return schedule;
+    } catch (e) {
+      console.warn('LLM schedule fallback:', e);
+    }
 
     return `### 📅 Optimized Daily Schedule for ${context.profile.name.split(' ')[0]}
 
@@ -126,50 +379,265 @@ export const aiService = {
   },
 
   /**
-   * Resume Analyzer Engine
+   * Business Idea Generator with structured LLM synthesis
    */
-  analyzeResume: async (
-    resumeText: string,
-    targetRole: string
-  ): Promise<ResumeAnalysis> => {
-    let score = 72;
-    const lower = resumeText.toLowerCase();
-    const techKeywords = ['react', 'next.js', 'typescript', 'python', 'c++', 'sql', 'postgresql', 'docker', 'git', 'api', 'aws', 'rest', 'tailwind', 'algorithms', 'data structures'];
-    const matchedSkills = techKeywords.filter(keyword => lower.includes(keyword));
-    const missingSkills = ['Redis / Caching', 'CI/CD Pipelines (GitHub Actions)', 'System Design / Microservices', 'Unit & Integration Testing (Jest/Vitest)', 'Docker Containerization'].filter(skill => !lower.includes(skill.toLowerCase()));
-    if (matchedSkills.length > 6) score += 12;
-    if (lower.includes('metric') || lower.includes('%') || lower.includes('increased') || lower.includes('reduced') || lower.includes('ms')) score += 8;
-    score = Math.min(score, 94);
+  generateBusinessIdea: async (
+    skills: string,
+    industry: string,
+    context: AIRequestContext
+  ): Promise<BusinessIdea> => {
+    const prompt = `Synthesize a realistic, high-margin B2B Micro-SaaS startup idea for a developer with skills: "${skills}". Target industry: "${industry}".
+Output strictly a JSON object with this format:
+{
+  "title": "<Idea Name and Tagline>",
+  "tagline": "<Short 1-sentence value hook>",
+  "problem": "<2-sentence sharp problem statement>",
+  "solution": "<2-sentence solution and unfair advantage>",
+  "targetAudience": "<target buyers/users>",
+  "techStack": ["<tech1>", "<tech2>", "<tech3>", "<tech4>", "<tech5>"],
+  "monetization": ["<Free Starter>", "<Pro Tier: $X/mo>", "<Enterprise: $Y/mo>"],
+  "mvpPlan": [
+    { "week": 1, "goal": "<Week 1 milestone>", "tasks": ["<task 1>", "<task 2>"] },
+    { "week": 2, "goal": "<Week 2 milestone>", "tasks": ["<task 1>", "<task 2>"] },
+    { "week": 3, "goal": "<Week 3 milestone>", "tasks": ["<task 1>", "<task 2>"] },
+    { "week": 4, "goal": "<Week 4 milestone>", "tasks": ["<task 1>", "<task 2>"] }
+  ],
+  "goToAction": ["<GTM step 1>", "<GTM step 2>", "<GTM step 3>"]
+}`;
+
+    try {
+      const rawJson = await aiService.generateChatResponse(prompt, [], { ...context, systemRole: 'You are a startup venture architect that outputs strictly valid JSON without explanation.' });
+      const cleanJson = rawJson.replace(/```json/g, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(cleanJson);
+      if (parsed.title && parsed.solution) {
+        return {
+          id: `biz-${Date.now()}`,
+          title: parsed.title,
+          tagline: parsed.tagline || '',
+          problem: parsed.problem || '',
+          solution: parsed.solution || '',
+          targetAudience: parsed.targetAudience || '',
+          techStack: parsed.techStack || ['Next.js 15', 'TypeScript', 'Tailwind CSS', 'FastAPI', 'PostgreSQL'],
+          monetization: parsed.monetization || ['Free Starter', 'Pro: $29/mo', 'Team: $99/mo'],
+          mvpPlan: parsed.mvpPlan || [],
+          goToAction: parsed.goToAction || [],
+          createdAt: new Date().toISOString()
+        };
+      }
+    } catch (e) {
+      console.warn('Business idea LLM parse fallback:', e);
+    }
+
     return {
-      id: `resume-${Date.now()}`,
-      overallScore: score,
-      summary: `Your resume shows strong foundational engineering and full-stack project experience for a **${targetRole || 'Full Stack / AI Engineer'}** role.`,
-      detectedSkills: matchedSkills.map(skill => skill.toUpperCase()),
-      missingSkills,
-      strengths: ['Solid modern web development stack', 'Hands-on project experience', 'Strong problem-solving foundation', 'Clean section hierarchy suitable for ATS parsing'],
-      weakSections: ['Project bullets need measurable quantitative impact.', 'Testing and CI/CD are not clearly represented.'],
-      improvementSuggestions: ['Use the Google XYZ formula for project bullets.', 'Add categorized technical skills.', 'Include GitHub and live demo links.'],
-      rewrittenBullets: [
-        { before: 'Built an AI assistant web app using React and Gemini API.', after: 'Architected and deployed a multi-tenant AI copilot with React and TypeScript, reducing response latency by 45%.', reason: 'Quantifies impact and technical ownership.' },
-        { before: 'Worked on database queries and backend APIs.', after: 'Engineered REST endpoints and optimized PostgreSQL queries with indexing, reducing average response time from 320ms to 85ms.', reason: 'Shows backend depth with measurable results.' }
+      id: `biz-${Date.now()}`,
+      title: 'DocuMind AI — Real-time API Documentation & Test Engine',
+      tagline: 'Automatically generates interactive API playground and Postman collections from code repositories.',
+      problem: 'Engineering teams waste 15+ hours per sprint keeping OpenAPI specs and Swagger docs in sync with rapidly evolving backend routes.',
+      solution: 'A GitHub bot that watches PRs and auto-generates live interactive documentation pages and automated endpoint regression tests.',
+      targetAudience: 'Fast-growing SaaS startups, API-first companies, and development agencies.',
+      techStack: ['Next.js 15', 'TypeScript', 'FastAPI', 'PostgreSQL', 'Docker', 'Stripe'],
+      monetization: [
+        'Free Starter: Up to 3 API endpoints',
+        'Pro Tier: $39/month (unlimited endpoints & team sync)',
+        'Enterprise: $299/month (custom domain, SSO, SLA)'
+      ],
+      mvpPlan: [
+        { week: 1, goal: 'AST Route Extractor', tasks: ['Parse FastAPI and Express routes using Tree-sitter', 'Build JSON schema exporter'] },
+        { week: 2, goal: 'Interactive UI Playground', tasks: ['Build clean Swagger/GraphQL-like viewer with dark mode', 'Enable direct API testing'] },
+        { week: 3, goal: 'GitHub Webhook Sync', tasks: ['Listen to push events', 'Auto-update documentation branches'] },
+        { week: 4, goal: 'Stripe Billing & Launch', tasks: ['Launch on Product Hunt, Hacker News, and Indie Hackers'] }
+      ],
+      goToAction: [
+        'Build an open-source CLI that generates docs in terminal',
+        'Post demo video on X and LinkedIn showcasing instant API doc generation',
+        'Offer free lifetime Pro licenses to first 20 beta testers'
       ],
       createdAt: new Date().toISOString()
     };
   }
 };
 
-async function streamText(fullText: string, onChunk: (chunk: string) => void): Promise<void> {
+/**
+ * Stream Google Gemini API with SSE chunk decoder
+ */
+async function streamGemini(
+  prompt: string,
+  history: { role: 'user' | 'assistant'; content: string }[],
+  context: AIRequestContext,
+  apiKey: string,
+  onChunk?: (chunk: string) => void
+): Promise<string> {
+  const model = context.settings.model || 'gemini-2.0-flash';
+  const systemPrompt = buildSystemPrompt(context);
+
+  const contents = [
+    ...history.slice(-8).map(h => ({
+      role: h.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: h.content }]
+    })),
+    {
+      role: 'user',
+      parts: [{ text: prompt }]
+    }
+  ];
+
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${apiKey}&alt=sse`;
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents,
+      systemInstruction: {
+        parts: [{ text: systemPrompt }]
+      },
+      generationConfig: {
+        temperature: context.settings.temperature ?? 0.7,
+        maxOutputTokens: 8192
+      }
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData?.error?.message || `Gemini API Error ${response.status}: ${response.statusText}`);
+  }
+
+  if (!response.body) {
+    throw new Error('ReadableStream not supported by browser.');
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let fullText = '';
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || !trimmed.startsWith('data:')) continue;
+      const jsonStr = trimmed.replace(/^data:\s*/, '');
+      if (jsonStr === '[DONE]') continue;
+
+      try {
+        const parsed = JSON.parse(jsonStr);
+        const chunkText = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        if (chunkText) {
+          fullText += chunkText;
+          if (onChunk) onChunk(fullText);
+        }
+      } catch {
+        // partial chunk ignore
+      }
+    }
+  }
+
+  return fullText || 'No response received from Gemini.';
+}
+
+/**
+ * Stream OpenAI-compatible endpoints (Groq, OpenAI, OpenRouter)
+ */
+async function streamOpenAICompatible(
+  url: string,
+  apiKey: string,
+  model: string,
+  prompt: string,
+  history: { role: 'user' | 'assistant'; content: string }[],
+  context: AIRequestContext,
+  onChunk?: (chunk: string) => void
+): Promise<string> {
+  const systemPrompt = buildSystemPrompt(context);
+
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    ...history.slice(-8).map(h => ({
+      role: h.role,
+      content: h.content
+    })),
+    { role: 'user', content: prompt }
+  ];
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature: context.settings.temperature ?? 0.7,
+      stream: true
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData?.error?.message || `LLM API Error ${response.status}: ${response.statusText}`);
+  }
+
+  if (!response.body) {
+    throw new Error('ReadableStream not supported by browser.');
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let fullText = '';
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || !trimmed.startsWith('data:')) continue;
+      const jsonStr = trimmed.replace(/^data:\s*/, '');
+      if (jsonStr === '[DONE]') continue;
+
+      try {
+        const parsed = JSON.parse(jsonStr);
+        const delta = parsed.choices?.[0]?.delta?.content || '';
+        if (delta) {
+          fullText += delta;
+          if (onChunk) onChunk(fullText);
+        }
+      } catch {
+        // partial chunk ignore
+      }
+    }
+  }
+
+  return fullText || 'No response received from model.';
+}
+
+/**
+ * Simulate word-by-word streaming for smooth visual rendering
+ */
+async function simulateTokenStream(fullText: string, onChunk: (chunk: string) => void): Promise<void> {
   const words = fullText.split(' ');
   let current = '';
   for (let index = 0; index < words.length; index++) {
     current += (index === 0 ? '' : ' ') + words[index];
     onChunk(current);
-    await new Promise(resolve => setTimeout(resolve, 12));
+    await new Promise(resolve => setTimeout(resolve, 10));
   }
 }
 
 /**
- * Smart Built-in Offline Brain (Rich Contextual Knowledge Base)
+ * Smart Built-in Offline Brain (High-quality contextual responses)
  */
 async function generateSmartMockResponse(
   prompt: string,
@@ -177,20 +645,20 @@ async function generateSmartMockResponse(
   context: AIRequestContext,
   onChunk?: (chunk: string) => void
 ): Promise<string> {
-  const { profile, memories } = context;
+  const { profile } = context;
   const lower = prompt.toLowerCase();
 
   let response = '';
 
-  // 1. "What should I learn next?" or learning queries
-  if (lower.includes('learn next') || lower.includes('what to learn') || lower.includes('study plan')) {
+  // 1. Learning & Roadmaps
+  if (lower.includes('learn next') || lower.includes('what to learn') || lower.includes('study plan') || lower.includes('roadmap')) {
     response = `Hey ${profile.name.split(' ')[0]}! Based on your profile as a **${profile.education}** student aiming for **${profile.targetRole}**, and your active skills in **${profile.skills.slice(0, 5).join(', ')}**, here is your personalized next learning milestone:
 
-### 🎯 High-Impact Learning Recommendation:
+### 🎯 High-Impact Learning Recommendations:
 
-1. **Autonomous AI Agents & Function Calling (LangChain / LlamaIndex / Gemini 2.0)**:
+1. **Autonomous AI Agents & Function Calling (LangChain / Gemini 2.0 / ReAct)**:
    - Since you already know React and Python, bridging them with autonomous multi-step tool calling will put you in the top 1% of student developers.
-   - **Key Concepts**: ReAct prompt loop, Vector Embeddings with ChromaDB, Streaming responses over WebSockets.
+   - **Key Concepts**: ReAct prompt loop, Vector Embeddings with ChromaDB, Streaming responses over Server-Sent Events.
 
 2. **System Design & Distributed Caching (Redis + PostgreSQL)**:
    - For SDE-1 interviews, master rate limiting (Token Bucket), horizontal database sharding, and optimistic locking.
@@ -199,17 +667,17 @@ async function generateSmartMockResponse(
    - Continue solving 2-3 LeetCode Mediums daily focusing on Dijkstra, Topological Sort, and DP on Trees.
 
 \`\`\`typescript
-// Quick Agent Function Calling Schema Example
-export const weatherToolDefinition = {
-  name: "get_weather_data",
-  description: "Fetches live temperature and humidity for a specified city.",
+// Agent Tool Calling Schema Example
+export const agentToolDefinition = {
+  name: "execute_code_sandbox",
+  description: "Executes TypeScript/Python code in a secure sandboxed WebAssembly runtime.",
   parameters: {
     type: "object",
     properties: {
-      city: { type: "string", description: "City name e.g. Mumbai, SF" },
-      units: { type: "string", enum: ["metric", "imperial"] }
+      language: { type: "string", enum: ["typescript", "python", "sql"] },
+      code: { type: "string", description: "Source code to execute" }
     },
-    required: ["city"]
+    required: ["language", "code"]
   }
 };
 \`\`\`
@@ -218,7 +686,7 @@ Would you like me to generate a 4-week day-by-day roadmap or start an interactiv
   }
   // 2. React / Frontend Questions
   else if (lower.includes('react') || lower.includes('next') || lower.includes('frontend') || lower.includes('hook') || lower.includes('state')) {
-    response = `Here is the modern, best-practice breakdown for **React & Next.js 15**:
+    response = `Here is the modern, best-practice breakdown for **React 19 & Next.js 15**:
 
 ### ⚡ React 19 Core Paradigm Shift:
 React 19 introduces native **Actions**, \`useActionState\`, \`useOptimistic\`, and the \`use()\` hook for reading promises and contexts directly inside components.
@@ -314,43 +782,51 @@ int main() {
 - **Time Complexity**: $O(N \\times W)$ where $N$ is number of items and $W$ is maximum capacity.
 - **Space Complexity**: $O(W)$ using a single 1D rolling array instead of a 2D $O(N \\times W)$ matrix.`;
   }
-  // 4. Career / Resume / Interview
-  else if (lower.includes('resume') || lower.includes('career') || lower.includes('interview') || lower.includes('internship') || lower.includes('job')) {
-    response = `Here is your targeted career acceleration plan for **${profile.targetRole}**:
+  // 4. University Exam / 10-Mark Question
+  else if (lower.includes('university') || lower.includes('exam') || lower.includes('10-mark') || lower.includes('derive') || lower.includes('vtu') || lower.includes('jntu')) {
+    response = `## 🎓 10-MARK UNIVERSITY EXAMINATION SOLUTION
 
-### 🎯 3 High-Yield Placement Strategies:
+**Course:** B.Tech Computer Science & Engineering  
+**Pattern:** VTU / JNTU / SPPU / Autonomous Semester Examination Standards
 
-1. **Portfolio That Proofs Value**:
-   - Don't just list Todo apps. Showcase **${profile.currentProjects[0] || 'Kedar AI'}** with a live demo link, architecture diagram, and measurable performance metrics.
-   - Include a GitHub README with demo GIFs, API documentation, and benchmark numbers.
+---
 
-2. **The Google XYZ Resume Standard**:
-   - ❌ *Weak*: "Created an AI bot using React and Python."
-   - ✅ *Strong*: "Engineered a full-stack AI assistant with React and FastAPI, reducing student response latency by **40%** and handling **1,000+** concurrent websocket connections."
+### 1. DEFINITION & CORE PRINCIPLE
+A **Virtual Memory System** is a memory management capability of an OS that uses hardware and software to allow a computer to compensate for physical memory shortages by temporarily transferring data from random access memory (RAM) to disk storage.
 
-3. **Interview Preparation Framework**:
-   - **DSA (40%)**: 100 Striver SDE sheet questions.
-   - **Core CS (30%)**: OS (Deadlocks, Paging, Virtual Memory), DBMS (Indexing, Normalization, ACID), Computer Networks (TCP 3-way handshake, DNS, HTTPS).
-   - **System Design & Projects (30%)**: Deep understanding of every line of code in your resume projects.`;
-  }
-  // 5. Business / Freelancing / Startup
-  else if (lower.includes('business') || lower.includes('startup') || lower.includes('freelance') || lower.includes('saas') || lower.includes('money')) {
-    response = `Here is a high-conviction **Micro-SaaS & Freelance Strategy** tailored to your engineering skills (**React, Next.js, Python, AI APIs**):
+### 2. ARCHITECTURAL BLOCK DIAGRAM
+\`\`\`
++-----------------------+
+|  CPU Logical Address  | ---> [ Page Number (p) | Offset (d) ]
++-----------------------+                      |
+          |                                    |
+          v                                    v
++-------------------+             +-----------------------+
+|    Page Table     | ----------> | Physical Frame Number | + Offset (d)
++-------------------+             +-----------------------+
+          |                                    |
+     [Valid Bit = 0]                           v
+          |                       +-----------------------+
+          v                       |   Physical RAM (DRAM) |
+    PAGE FAULT TRAP               +-----------------------+
+          |                                    ^
+          +----> OS Handler -> Fetch Disk Page +
+\`\`\`
 
-### 💡 High-Margin Opportunity: **Automated AI Support & Workflow Agents for Local Businesses**
+### 3. STEP-BY-STEP PAGE FAULT HANDLING SEQUENCE
+1. **Trap to Operating System**: Hardware references page table; if valid-invalid bit is 0, CPU raises an internal interrupt (Page Fault Trap).
+2. **Save Process State**: CPU registers and process state are pushed to the Process Control Block (PCB).
+3. **Validate Memory Access**: OS checks internal tables to verify if memory reference is legitimate or illegal segmentation fault.
+4. **Locate Disk Frame**: OS finds free frame on backing store (Swap space).
+5. **Issue Disk I/O**: Read required page from disk into assigned physical RAM frame.
+6. **Update Page Table**: Set valid bit to 1 and update physical frame number.
+7. **Restart Faulted Instruction**: Restore process registers and resume user execution seamlessly.
 
-- **Problem**: Small business owners (clinics, real estate agencies, coaching institutes) lose 40% of inbound leads because they take hours to respond to WhatsApp/Web inquiries.
-- **Solution**: Build a custom WhatsApp/Web chat agent powered by Gemini with custom business FAQs and Google Sheets appointment booking.
-- **Pricing Model**:
-  - Setup Fee: $300 - $600 (₹25,000 - ₹50,000)
-  - Monthly Retainer / Maintenance: $50 - $100/month (₹4,000 - ₹8,000)
-- **Tech Stack**: Next.js 15, FastAPI, Twilio / WhatsApp Cloud API, Gemini 1.5 Flash, Supabase.
+### 4. KEY FORMULAS & EFFECTIVE ACCESS TIME (EAT)
+$$\\text{EAT} = (1 - p) \\times \\text{Memory Access Time} + p \\times \\text{Page Fault Service Time}$$
+Where $p$ is the page fault probability ($0 \\le p \\le 1$).
 
-### 🚀 7-Day Action Plan:
-1. **Day 1-2**: Build a working prototype widget you can embed on any HTML page.
-2. **Day 3-4**: Connect it to a Google Sheet using Webhooks.
-3. **Day 5-6**: Record a 90-second video demo showing how an inquiry turns into a booked lead.
-4. **Day 7**: Send 20 cold DMs/emails to local service businesses.`;
+> ⭐ **100% Marks Exam Tip**: Always draw the 6-step Page Fault flowchart and write the EAT formula to guarantee full marks from the university evaluator.`;
   }
   // Default General Response
   else {
@@ -358,24 +834,18 @@ int main() {
 
 Here is what we can do together right now:
 - 💻 **Coding Workspace**: Generate, debug, or optimize algorithms in Python, C++, TypeScript, SQL, and React.
-- 🤖 **Agent Mode**: Give me a complex high-level goal and I'll execute it step-by-step.
+- 🤖 **Autonomous Multi-Agent Mode**: Give me a high-level goal and my specialized agents (Architect, Engineer, QA Auditor, DevOps) will build it step-by-step.
+- 🎓 **University Exam Solver & Viva Voce**: Practice audible oral viva questions and generate 10-mark exam sheets.
+- 📑 **Lab Practical Record Generator**: 1-Click university manuals with aim, algorithms, source code, and sample I/O.
 - 📅 **Task Planning**: Click "Plan My Day" to build an optimal study & coding schedule.
-- 🎓 **Learning Arena**: Deep-dive into Next.js 15, LLMs, or solve custom quizzes.
-- 🎯 **Career & Resume**: Analyze your resume against ATS standards with Google XYZ bullet rewrites.
+- 🎯 **Career & Resume Coach**: Audit your resume with ATS 90+ scoring and Google XYZ bullet rewrites.
 - ✍️ **Content Studio**: Craft high-engagement LinkedIn posts, tweets, and YouTube scripts.
 
 How can I help you dominate your goals today?`;
   }
 
-  // Simulate streaming response
   if (onChunk) {
-    const words = response.split(' ');
-    let current = '';
-    for (let i = 0; i < words.length; i++) {
-      current += (i === 0 ? '' : ' ') + words[i];
-      onChunk(current);
-      await new Promise(r => setTimeout(r, 14));
-    }
+    await simulateTokenStream(response, onChunk);
   }
 
   return response;

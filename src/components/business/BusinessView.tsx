@@ -23,49 +23,11 @@ export const BusinessView: React.FC = () => {
     showToast('AI is synthesizing a high-margin Micro-SaaS blueprint...', 'info');
 
     try {
-      const prompt = `Generate a realistic, high-margin B2B Micro-SaaS / Startup business idea for a developer with skills in: ${inputSkills}. Target domain: ${industry}.
-Provide structured breakdown:
-- Title & Tagline
-- Problem being solved
-- Solution & Unique Value Proposition
-- Target Audience
-- Tech Stack
-- Monetization Strategy (Free tier, Pro tier, Enterprise)
-- 4-Week MVP Action Plan
-- Go-to-Market Strategy`;
-
-      const response = await aiService.generateChatResponse(
-        prompt,
-        [],
+      const newIdea = await aiService.generateBusinessIdea(
+        inputSkills,
+        industry,
         { profile, memories, settings }
       );
-
-      const newIdea: BusinessIdea = {
-        id: `biz-${Date.now()}`,
-        title: `DocuMind AI — Real-time API Documentation & Test Engine`,
-        tagline: 'Automatically generates interactive API playground and Postman collections from code repositories.',
-        problem: 'Engineering teams waste 15+ hours per sprint keeping OpenAPI specs and Swagger docs in sync with rapidly evolving backend routes.',
-        solution: 'A GitHub bot that watches PRs and auto-generates live interactive documentation pages and automated endpoint regression tests.',
-        targetAudience: 'Fast-growing SaaS startups, API-first companies, and development agencies.',
-        techStack: ['Next.js 15', 'TypeScript', 'FastAPI', 'PostgreSQL', 'Docker', 'Stripe'],
-        monetization: [
-          'Free Starter: Up to 3 API endpoints',
-          'Pro Tier: $39/month (unlimited endpoints & team sync)',
-          'Enterprise: $299/month (custom domain, SSO, SLA)'
-        ],
-        mvpPlan: [
-          { week: 1, goal: 'AST Route Extractor', tasks: ['Parse FastAPI and Express routes using Tree-sitter', 'Build JSON schema exporter'] },
-          { week: 2, goal: 'Interactive UI Playground', tasks: ['Build clean Swagger/GraphQL-like viewer with dark mode', 'Enable direct API testing'] },
-          { week: 3, goal: 'GitHub Webhook Sync', tasks: ['Listen to push events', 'Auto-update documentation branches'] },
-          { week: 4, goal: 'Stripe Billing & Launch', tasks: ['Launch on Product Hunt, Hacker News, and Indie Hackers'] }
-        ],
-        goToAction: [
-          'Build an open-source CLI that generates docs in terminal',
-          'Post demo video on X and LinkedIn showcasing instant API doc generation',
-          'Offer free lifetime Pro licenses to first 20 beta testers'
-        ],
-        createdAt: new Date().toISOString()
-      };
 
       addBusinessIdea(newIdea);
       setSelectedIdea(newIdea);

@@ -36,6 +36,7 @@ export interface UserProfile {
   userTier: UserTier;
   tierExpiresAt?: string;
   referralCode: string;
+  upiId?: string;
 }
 
 export interface ReferralStats {
@@ -67,13 +68,33 @@ export interface Conversation {
   isPinned?: boolean;
 }
 
+export type AIProvider = 'gemini' | 'groq' | 'openai' | 'openrouter' | 'mock' | 'supabase';
+
+export type AgentRole = 'supervisor' | 'architect' | 'engineer' | 'auditor' | 'devops';
+
 export interface AgentStep {
   id: string;
+  agentRole?: AgentRole;
+  agentName?: string;
   title: string;
   description: string;
   status: 'pending' | 'in_progress' | 'completed' | 'failed';
   toolUsed?: string;
   output?: string;
+  codeSnippet?: {
+    language: string;
+    code: string;
+    filename?: string;
+  };
+}
+
+export interface AgentDeliverable {
+  id: string;
+  title: string;
+  type: 'code' | 'architecture' | 'docker' | 'synopsis' | 'config';
+  filename: string;
+  language: string;
+  content: string;
 }
 
 export interface AgentTask {
@@ -83,6 +104,7 @@ export interface AgentTask {
   steps: AgentStep[];
   status: 'planning' | 'running' | 'completed' | 'failed';
   finalResult?: string;
+  deliverables?: AgentDeliverable[];
   createdAt: string;
 }
 
@@ -182,10 +204,15 @@ export interface CodeSnippet {
 }
 
 export interface AISettings {
-  provider: 'gemini' | 'mock';
+  provider: AIProvider;
   model: string;
   temperature: number;
   theme: 'dark' | 'light';
   autoSaveMemory: boolean;
   voiceSynthesis: boolean;
+  geminiApiKey?: string;
+  groqApiKey?: string;
+  openaiApiKey?: string;
+  openrouterApiKey?: string;
+  customSystemPrompt?: string;
 }
