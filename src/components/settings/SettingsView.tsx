@@ -107,9 +107,37 @@ export const SettingsView: React.FC = () => {
     });
 
     if (result.success) {
-      showToast(`Connection Verified! (${result.latencyMs}ms)`, 'success');
+      if (result.activeModel && result.activeModel !== model) {
+        setModel(result.activeModel);
+      }
+      showToast(`Connection Verified with ${result.activeModel || model}! (${result.latencyMs}ms)`, 'success');
     } else {
       showToast(`Test Failed: ${result.message}`, 'error');
+    }
+  };
+
+  const [isFetchingModels, setIsFetchingModels] = useState(false);
+  const [liveModels, setLiveModels] = useState<string[]>([]);
+
+  const handleFetchLiveModels = async () => {
+    setIsFetchingModels(true);
+    showToast(`Querying ${provider.toUpperCase()} for active models...`, 'info');
+
+    const activeKey = provider === 'gemini' ? geminiApiKey 
+      : provider === 'groq' ? groqApiKey 
+      : provider === 'openai' ? openaiApiKey 
+      : openrouterApiKey;
+
+    const res = await aiService.fetchAvailableModels(provider, activeKey);
+    setIsFetchingModels(false);
+    if (res.success && res.models.length > 0) {
+      setLiveModels(res.models);
+      showToast(`Loaded ${res.models.length} active models from ${provider.toUpperCase()}!`, 'success');
+      if (!res.models.includes(model)) {
+        setModel(res.models[0]);
+      }
+    } else {
+      showToast(res.message || 'Failed to fetch live catalog', 'error');
     }
   };
 
@@ -152,24 +180,30 @@ export const SettingsView: React.FC = () => {
 
   const modelPresets: Record<string, { model: string; label: string; desc: string }[]> = {
     gemini: [
-      { model: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', desc: 'Next-gen lightning speed, multimodal & real-time' },
-      { model: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', desc: 'Enhanced reasoning, low latency & deep context' },
-      { model: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro', desc: 'Complex reasoning, 2M token context, deep code math' },
-      { model: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash', desc: 'Fast, cost-efficient, 1M token window' }
+      { model: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Recommended)', desc: 'Next-gen flagship, multimodal, ultra-fast & low latency' },
+      { model: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', desc: 'Complex reasoning, deep STEM mathematics & code generation' },
+      { model: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash', desc: 'High-speed production model, 1M token context window' },
+      { model: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro', desc: 'Deep contextual reasoning with 2M token context' }
     ],
     groq: [
-      { model: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile', desc: 'Ultra-fast 800+ tokens/sec, near-GPT-4 intelligence' },
-      { model: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant', desc: 'Sub-100ms response time, excellent for quick chat' },
-      { model: 'deepseek-r1-distill-llama-70b', label: 'DeepSeek R1 Distill 70B', desc: 'Advanced step-by-step mathematical reasoning' }
+      { model: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant (Ultra Fast)', desc: 'Sub-100ms response time, 800+ tokens/sec on Groq LPU' },
+      { model: 'llama3-70b-8192', label: 'Meta Llama 3 70B', desc: 'Production 70B model, deep programming intelligence' },
+      { model: 'llama3-8b-8192', label: 'Meta Llama 3 8B', desc: 'Fast, lightweight open-weights on Groq hardware' },
+      { model: 'gemma2-9b-it', label: 'Google Gemma 2 9B', desc: 'Google next-gen open weights running on Groq LPU' },
+      { model: 'gpt-oss-120b', label: 'GPT-OSS 120B', desc: 'OpenAI open-weight 120B high intelligence model on Groq' }
     ],
     openai: [
-      { model: 'gpt-4o', label: 'GPT-4o Flagship', desc: 'High intelligence, comprehensive coding depth' },
-      { model: 'gpt-4o-mini', label: 'GPT-4o Mini', desc: 'Fast, efficient, high accuracy' },
-      { model: 'o3-mini', label: 'o3-mini Reasoning', desc: 'STEM and coding logic specialist' }
+      { model: 'gpt-4o', label: 'GPT-4o Flagship', desc: 'High intelligence, comprehensive multi-domain coding depth' },
+      { model: 'gpt-4o-mini', label: 'GPT-4o Mini', desc: 'Fast, cost-efficient, high accuracy for general queries' },
+      { model: 'o3-mini', label: 'o3-mini Reasoning', desc: 'STEM, algorithmic, and mathematical logic specialist' },
+      { model: 'o1', label: 'o1 Advanced Reasoning', desc: 'Deep scientific and complex algorithmic synthesis' }
     ],
     openrouter: [
-      { model: 'deepseek/deepseek-r1', label: 'DeepSeek R1', desc: 'Open reasoning powerhouse with transparent thinking' },
-      { model: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet', desc: 'Benchmark coding & architectural generation' }
+      { model: 'deepseek/deepseek-r1', label: 'DeepSeek R1', desc: 'Open reasoning powerhouse with transparent step-by-step thinking' },
+      { model: 'deepseek/deepseek-chat', label: 'DeepSeek V3 (671B)', desc: 'Frontier performance across code and language synthesis' },
+      { model: 'meta-llama/llama-3.3-70b-instruct', label: 'Meta Llama 3.3 70B', desc: 'High intelligence open-weight flagship on OpenRouter' },
+      { model: 'meta-llama/llama-3.2-3b-instruct:free', label: 'Llama 3.2 (100% Free)', desc: 'Zero credit required on OpenRouter free tier' },
+      { model: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet', desc: 'Top tier coding & architectural reasoning' }
     ],
     mock: [
       { model: 'smart-offline-brain', label: 'Smart Contextual Brain', desc: 'Pre-loaded student knowledge, zero API key required' }
@@ -553,8 +587,49 @@ export const SettingsView: React.FC = () => {
             </div>
 
             {/* Model Presets & Selection */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-2">Model Selection</label>
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300">Model Selection & Catalog</label>
+                  <p className="text-[11px] text-slate-500">Pick from curated modern production models or fetch all active models for your API key.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleFetchLiveModels}
+                  disabled={isFetchingModels}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-indigo-300 hover:text-indigo-200 transition-colors self-start sm:self-auto disabled:opacity-50"
+                >
+                  {isFetchingModels ? <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400" /> : <RotateCcw className="w-3.5 h-3.5 text-indigo-400" />}
+                  <span>{isFetchingModels ? 'Querying API...' : 'Fetch Live Models from Key'}</span>
+                </button>
+              </div>
+
+              {/* Dynamic Live Models Pill Bar (if fetched) */}
+              {liveModels.length > 0 && (
+                <div className="p-3 rounded-2xl bg-indigo-950/30 border border-indigo-500/30 space-y-2">
+                  <span className="text-[11px] font-bold text-indigo-300 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-indigo-400" />
+                    <span>Active Models on Your Account ({liveModels.length})</span>
+                  </span>
+                  <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-1">
+                    {liveModels.map((lm) => (
+                      <button
+                        key={lm}
+                        type="button"
+                        onClick={() => setModel(lm)}
+                        className={`text-[11px] font-mono px-2.5 py-1 rounded-lg border transition-all ${
+                          model === lm 
+                            ? 'bg-indigo-600 text-white border-indigo-400 shadow-sm' 
+                            : 'bg-slate-900/80 text-slate-300 border-slate-800 hover:border-slate-600'
+                        }`}
+                      >
+                        {lm}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                 {(modelPresets[provider] || modelPresets.gemini).map((preset) => (
                   <div
@@ -574,6 +649,7 @@ export const SettingsView: React.FC = () => {
                   </div>
                 ))}
               </div>
+
               <div className="mt-2">
                 <input
                   type="text"

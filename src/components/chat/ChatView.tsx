@@ -279,7 +279,7 @@ export const ChatView: React.FC = () => {
               <Sparkles className="w-3 h-3 text-indigo-400" />
               <span className="font-semibold text-white uppercase">{settings.provider || 'gemini'}</span>
               <span className="text-slate-500">•</span>
-              <span className="text-slate-400">{settings.model || 'gemini-2.0-flash'}</span>
+              <span className="text-slate-400">{settings.model || 'gemini-2.5-flash'}</span>
             </div>
           </div>
         </div>

@@ -56,54 +56,147 @@ Guidelines:
 
 export const aiService = {
   /**
-   * Test an API Key connection with a fast verification ping
+   * Fetch real live available models from provider API
+   */
+  fetchAvailableModels: async (
+    provider: AIProvider,
+    apiKey: string
+  ): Promise<{ success: boolean; models: string[]; message?: string }> => {
+    if (!apiKey) {
+      return { success: false, models: [], message: 'Please provide an API key first.' };
+    }
+
+    try {
+      if (provider === 'gemini') {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err?.error?.message || `HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        const models = (data.models || [])
+          .filter((m: any) => m.supportedGenerationMethods?.includes('generateContent'))
+          .map((m: any) => m.name.replace('models/', ''));
+        return { success: true, models: models.length > 0 ? models : ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-1.5-flash', 'gemini-1.5-pro'] };
+      }
+
+      if (provider === 'groq') {
+        const res = await fetch('https://api.groq.com/openai/v1/models', {
+          headers: { 'Authorization': `Bearer ${apiKey}` }
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err?.error?.message || `HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        const models = (data.data || []).map((m: any) => m.id);
+        return { success: true, models: models.length > 0 ? models : ['llama-3.1-8b-instant', 'llama3-70b-8192', 'llama3-8b-8192', 'gemma2-9b-it', 'gpt-oss-120b'] };
+      }
+
+      if (provider === 'openrouter') {
+        const res = await fetch('https://openrouter.ai/api/v1/models', {
+          headers: { 'Authorization': `Bearer ${apiKey}` }
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err?.error?.message || `HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        const models = (data.data || []).slice(0, 40).map((m: any) => m.id);
+        return { success: true, models: models.length > 0 ? models : ['deepseek/deepseek-r1', 'deepseek/deepseek-chat', 'meta-llama/llama-3.3-70b-instruct', 'meta-llama/llama-3.2-3b-instruct:free'] };
+      }
+
+      if (provider === 'openai') {
+        const res = await fetch('https://api.openai.com/v1/models', {
+          headers: { 'Authorization': `Bearer ${apiKey}` }
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err?.error?.message || `HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        const models = (data.data || [])
+          .map((m: any) => m.id)
+          .filter((id: string) => id.includes('gpt') || id.includes('o1') || id.includes('o3'));
+        return { success: true, models: models.length > 0 ? models : ['gpt-4o', 'gpt-4o-mini', 'o3-mini'] };
+      }
+
+      return { success: false, models: [], message: 'No live model list available for this provider.' };
+    } catch (err: any) {
+      return { success: false, models: [], message: err.message || 'Failed to fetch live model catalog.' };
+    }
+  },
+
+  /**
+   * Test an API Key connection with a fast verification ping and auto-recovery
    */
   testAPIConnection: async (
     provider: AIProvider,
     apiKey: string,
     model?: string
-  ): Promise<{ success: boolean; message: string; latencyMs: number }> => {
+  ): Promise<{ success: boolean; message: string; latencyMs: number; activeModel?: string }> => {
     const start = Date.now();
     const testPrompt = 'Respond with exact word "OK" only.';
 
     try {
       if (provider === 'gemini') {
-        const targetModel = model || 'gemini-2.0-flash';
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: testPrompt }] }],
-            generationConfig: { maxOutputTokens: 10 }
-          })
-        });
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData?.error?.message || `HTTP ${res.status}: ${res.statusText}`);
+        // Modern model candidates
+        let targetModel = model && model !== 'gemini-2.0-flash' ? model : 'gemini-2.5-flash';
+        const testCandidates = [targetModel, 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+        
+        let lastError = '';
+        for (const candidate of testCandidates) {
+          try {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${candidate}:generateContent?key=${apiKey}`;
+            const res = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ role: 'user', parts: [{ text: testPrompt }] }],
+                generationConfig: { maxOutputTokens: 10 }
+              })
+            });
+            if (res.ok) {
+              return { success: true, message: `Connected to Google Gemini (${candidate})`, latencyMs: Date.now() - start, activeModel: candidate };
+            }
+            const errData = await res.json().catch(() => ({}));
+            lastError = errData?.error?.message || `HTTP ${res.status}: ${res.statusText}`;
+          } catch (e: any) {
+            lastError = e.message;
+          }
         }
-        return { success: true, message: `Connected to Google Gemini (${targetModel})`, latencyMs: Date.now() - start };
+        throw new Error(lastError || 'Failed to connect to Google Gemini models.');
       }
 
       if (provider === 'groq') {
-        const targetModel = model || 'llama-3.3-70b-versatile';
-        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-          },
-          body: JSON.stringify({
-            model: targetModel,
-            messages: [{ role: 'user', content: testPrompt }],
-            max_tokens: 10
-          })
-        });
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData?.error?.message || `HTTP ${res.status}: ${res.statusText}`);
+        let targetModel = model && model !== 'llama-3.3-70b-versatile' ? model : 'llama-3.1-8b-instant';
+        const testCandidates = [targetModel, 'llama-3.1-8b-instant', 'llama3-70b-8192', 'llama3-8b-8192', 'gemma2-9b-it'];
+        
+        let lastError = '';
+        for (const candidate of testCandidates) {
+          try {
+            const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+              },
+              body: JSON.stringify({
+                model: candidate,
+                messages: [{ role: 'user', content: testPrompt }],
+                max_tokens: 10
+              })
+            });
+            if (res.ok) {
+              return { success: true, message: `Connected to Groq Cloud (${candidate})`, latencyMs: Date.now() - start, activeModel: candidate };
+            }
+            const errData = await res.json().catch(() => ({}));
+            lastError = errData?.error?.message || `HTTP ${res.status}: ${res.statusText}`;
+          } catch (e: any) {
+            lastError = e.message;
+          }
         }
-        return { success: true, message: `Connected to Groq (${targetModel})`, latencyMs: Date.now() - start };
+        throw new Error(lastError || 'Failed to connect to Groq models.');
       }
 
       if (provider === 'openai') {
@@ -122,33 +215,47 @@ export const aiService = {
         });
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
-          throw new Error(errData?.error?.message || `HTTP ${res.status}: ${res.statusText}`);
+          const errMsg = errData?.error?.message || `HTTP ${res.status}: ${res.statusText}`;
+          if (errMsg.toLowerCase().includes('quota') || errMsg.toLowerCase().includes('billing')) {
+            throw new Error(`OpenAI API quota exceeded (check your billing plan). Tip: Google Gemini & Groq provide 100% free API keys!`);
+          }
+          throw new Error(errMsg);
         }
-        return { success: true, message: `Connected to OpenAI (${targetModel})`, latencyMs: Date.now() - start };
+        return { success: true, message: `Connected to OpenAI (${targetModel})`, latencyMs: Date.now() - start, activeModel: targetModel };
       }
 
       if (provider === 'openrouter') {
-        const targetModel = model || 'deepseek/deepseek-r1';
-        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-          },
-          body: JSON.stringify({
-            model: targetModel,
-            messages: [{ role: 'user', content: testPrompt }],
-            max_tokens: 10
-          })
-        });
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData?.error?.message || `HTTP ${res.status}: ${res.statusText}`);
+        let targetModel = model || 'deepseek/deepseek-r1';
+        const testCandidates = [targetModel, 'deepseek/deepseek-r1', 'deepseek/deepseek-chat', 'meta-llama/llama-3.2-3b-instruct:free'];
+        
+        let lastError = '';
+        for (const candidate of testCandidates) {
+          try {
+            const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+              },
+              body: JSON.stringify({
+                model: candidate,
+                messages: [{ role: 'user', content: testPrompt }],
+                max_tokens: 10
+              })
+            });
+            if (res.ok) {
+              return { success: true, message: `Connected to OpenRouter (${candidate})`, latencyMs: Date.now() - start, activeModel: candidate };
+            }
+            const errData = await res.json().catch(() => ({}));
+            lastError = errData?.error?.message || `HTTP ${res.status}: ${res.statusText}`;
+          } catch (e: any) {
+            lastError = e.message;
+          }
         }
-        return { success: true, message: `Connected to OpenRouter (${targetModel})`, latencyMs: Date.now() - start };
+        throw new Error(lastError || 'Failed to connect to OpenRouter.');
       }
 
-      return { success: true, message: 'Smart Offline Brain is active.', latencyMs: 5 };
+      return { success: true, message: 'Smart Offline Brain is active.', latencyMs: 5, activeModel: 'smart-offline-brain' };
     } catch (error: any) {
       return { success: false, message: error.message || 'Connection failed', latencyMs: Date.now() - start };
     }
@@ -460,6 +567,9 @@ Output strictly a JSON object with this format:
 /**
  * Stream Google Gemini API with SSE chunk decoder
  */
+/**
+ * Stream Google Gemini API with SSE chunk decoder and auto-model recovery
+ */
 async function streamGemini(
   prompt: string,
   history: { role: 'user' | 'assistant'; content: string }[],
@@ -467,7 +577,10 @@ async function streamGemini(
   apiKey: string,
   onChunk?: (chunk: string) => void
 ): Promise<string> {
-  const model = context.settings.model || 'gemini-2.0-flash';
+  let model = context.settings.model || 'gemini-2.5-flash';
+  if (model === 'gemini-2.0-flash') {
+    model = 'gemini-2.5-flash';
+  }
   const systemPrompt = buildSystemPrompt(context);
 
   const contents = [
@@ -481,22 +594,37 @@ async function streamGemini(
     }
   ];
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${apiKey}&alt=sse`;
+  const tryCall = async (targetModel: string) => {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:streamGenerateContent?key=${apiKey}&alt=sse`;
+    return await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents,
+        systemInstruction: {
+          parts: [{ text: systemPrompt }]
+        },
+        generationConfig: {
+          temperature: context.settings.temperature ?? 0.7,
+          maxOutputTokens: 8192
+        }
+      })
+    });
+  };
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents,
-      systemInstruction: {
-        parts: [{ text: systemPrompt }]
-      },
-      generationConfig: {
-        temperature: context.settings.temperature ?? 0.7,
-        maxOutputTokens: 8192
+  let response = await tryCall(model);
+
+  // Auto-recovery if model is deprecated or not found
+  if (!response.ok) {
+    const fallbackModels = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'].filter(m => m !== model);
+    for (const fb of fallbackModels) {
+      const fbRes = await tryCall(fb);
+      if (fbRes.ok) {
+        response = fbRes;
+        break;
       }
-    })
-  });
+    }
+  }
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
@@ -543,7 +671,7 @@ async function streamGemini(
 }
 
 /**
- * Stream OpenAI-compatible endpoints (Groq, OpenAI, OpenRouter)
+ * Stream OpenAI-compatible endpoints (Groq, OpenAI, OpenRouter) with auto-model fallback
  */
 async function streamOpenAICompatible(
   url: string,
@@ -554,6 +682,11 @@ async function streamOpenAICompatible(
   context: AIRequestContext,
   onChunk?: (chunk: string) => void
 ): Promise<string> {
+  let targetModel = model;
+  if (url.includes('groq.com') && targetModel === 'llama-3.3-70b-versatile') {
+    targetModel = 'llama-3.1-8b-instant';
+  }
+
   const systemPrompt = buildSystemPrompt(context);
 
   const messages = [
@@ -565,19 +698,35 @@ async function streamOpenAICompatible(
     { role: 'user', content: prompt }
   ];
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: context.settings.temperature ?? 0.7,
-      stream: true
-    })
-  });
+  const tryCall = async (m: string) => {
+    return await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: m,
+        messages,
+        temperature: context.settings.temperature ?? 0.7,
+        stream: true
+      })
+    });
+  };
+
+  let response = await tryCall(targetModel);
+
+  // If Groq model failed, auto-fallback to active Groq models
+  if (!response.ok && url.includes('groq.com')) {
+    const groqFallbacks = ['llama-3.1-8b-instant', 'llama3-70b-8192', 'llama3-8b-8192', 'gemma2-9b-it'].filter(m => m !== targetModel);
+    for (const fb of groqFallbacks) {
+      const fbRes = await tryCall(fb);
+      if (fbRes.ok) {
+        response = fbRes;
+        break;
+      }
+    }
+  }
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
