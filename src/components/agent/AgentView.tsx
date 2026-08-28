@@ -3,7 +3,7 @@ import {
   Sparkles, Play, CheckCircle2, Loader2, CircleDot, 
   ArrowRight, Download, Copy, Check, Terminal, FileCode,
   ShieldCheck, Layers, Cpu, RefreshCw, Box, Code2, Rocket,
-  Bug, ExternalLink
+  Bug, ExternalLink, PlusCircle, BookOpen, CheckSquare, X
 } from 'lucide-react';
 import { marked } from 'marked';
 import Prism from 'prismjs';
@@ -12,7 +12,7 @@ import { agentService } from '../../services/agentService';
 import { AgentTask, AgentStep, AgentDeliverable } from '../../types';
 
 export const AgentView: React.FC = () => {
-  const { profile, memories, settings, showToast, setCurrentSection } = useApp();
+  const { profile, memories, settings, addTask, addRoadmap, showToast, setCurrentSection } = useApp();
   const [goal, setGoal] = useState('');
   const [isRunning, setIsRunning] = useState(false);
   const [activeTask, setActiveTask] = useState<AgentTask | null>(null);
@@ -37,10 +37,10 @@ export const AgentView: React.FC = () => {
     if (!targetGoal.trim() || isRunning) return;
 
     setIsRunning(true);
-    showToast('Multi-Agent Swarm initializing goal analysis...', 'info');
+    showToast('Multi-Step Agent Planner analyzing goal...', 'info');
 
     try {
-      // Step 1: Supervisor Agent plans task breakdown
+      // Phase 1: Planning
       const initialTask = await agentService.generateAgentPlan(targetGoal, { profile, memories, settings });
       initialTask.status = 'running';
       setActiveTask(initialTask);
@@ -49,26 +49,30 @@ export const AgentView: React.FC = () => {
       const deliverables: AgentDeliverable[] = [];
       const updatedSteps: AgentStep[] = [...initialTask.steps];
 
-      // Step 2: Execute each specialized agent sequentially
+      // Phase 2: Sequential Step Execution
       for (let i = 0; i < updatedSteps.length; i++) {
         setSelectedStepIndex(i);
         updatedSteps[i].status = 'in_progress';
         setActiveTask({ ...initialTask, steps: [...updatedSteps] });
 
-        // Real agent step execution
-        const { output, codeSnippet, deliverable } = await agentService.executeStep(
-          initialTask,
-          updatedSteps[i],
-          { profile, memories, settings }
-        );
+        try {
+          const { output, codeSnippet, deliverable } = await agentService.executeStep(
+            initialTask,
+            updatedSteps[i],
+            { profile, memories, settings }
+          );
 
-        updatedSteps[i].status = 'completed';
-        updatedSteps[i].output = output;
-        if (codeSnippet) {
-          updatedSteps[i].codeSnippet = codeSnippet;
-        }
-        if (deliverable) {
-          deliverables.push(deliverable);
+          updatedSteps[i].status = 'completed';
+          updatedSteps[i].output = output;
+          if (codeSnippet) {
+            updatedSteps[i].codeSnippet = codeSnippet;
+          }
+          if (deliverable) {
+            deliverables.push(deliverable);
+          }
+        } catch (stepErr: any) {
+          updatedSteps[i].status = 'failed';
+          updatedSteps[i].output = `Execution failed: ${stepErr.message || 'Error executing step'}`;
         }
 
         setActiveTask({
@@ -78,348 +82,349 @@ export const AgentView: React.FC = () => {
         });
       }
 
-      // Step 3: Compile final report
+      // Phase 3: Final Report
       const finalReport = agentService.generateFinalReport(
         { ...initialTask, steps: updatedSteps },
         deliverables,
         profile.name
       );
 
+      const hasFailed = updatedSteps.some(s => s.status === 'failed');
+
       const completedTask: AgentTask = {
         ...initialTask,
         steps: updatedSteps,
         deliverables,
-        status: 'completed',
+        status: hasFailed ? 'failed' : 'completed',
         finalResult: finalReport
       };
 
       setActiveTask(completedTask);
-      showToast('All autonomous agent phases completed successfully!', 'success');
+      showToast(hasFailed ? 'Agent finished with step warnings.' : 'All autonomous agent phases executed successfully!', hasFailed ? 'info' : 'success');
     } catch (err: any) {
-      showToast(`Agent execution error: ${err.message || 'Execution failed'}`, 'error');
+      showToast(`Agent planning error: ${err.message || 'Planning failed'}`, 'error');
     } finally {
       setIsRunning(false);
     }
   };
 
-  const copyResult = () => {
-    if (!activeTask?.finalResult) return;
-    navigator.clipboard.writeText(activeTask.finalResult);
-    setCopied(true);
-    showToast('Report copied to clipboard!', 'success');
-    setTimeout(() => setCopied(false), 2000);
+  const handleSaveStepsToTasks = async () => {
+    if (!activeTask || activeTask.steps.length === 0) return;
+    
+    for (const step of activeTask.steps) {
+      await addTask({
+        title: `[Agent] ${step.title}`,
+        description: step.description,
+        priority: 'high',
+        category: 'project',
+        deadline: new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0],
+        isCompleted: step.status === 'completed'
+      });
+    }
+
+    showToast(`Saved ${activeTask.steps.length} steps to Task Planner!`, 'success');
+    setCurrentSection('tasks');
   };
 
-  const copyCode = (code: string, id: string) => {
+  const handleSavePlanToRoadmaps = async () => {
+    if (!activeTask) return;
+
+    await addRoadmap({
+      id: `road-agent-${Date.now()}`,
+      title: `${activeTask.goal.slice(0, 40)} Roadmap`,
+      description: `Actionable milestone roadmap generated by Kedar AI Autonomous Swarm.`,
+      icon: 'Rocket',
+      estimatedWeeks: 4,
+      level: 'Intermediate',
+      modules: [
+        {
+          id: 'mod-1',
+          title: 'Autonomous Execution Steps',
+          topics: activeTask.steps.map(s => s.title),
+          completed: false
+        }
+      ],
+      progress: 0
+    });
+
+    showToast('Saved Agent Plan to Learning Roadmaps!', 'success');
+    setCurrentSection('learning');
+  };
+
+  const downloadDeliverable = (deliv: AgentDeliverable) => {
+    const blob = new Blob([deliv.content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = deliv.filename || 'deliverable.txt';
+    a.click();
+    showToast(`Downloaded ${deliv.filename}!`, 'success');
+  };
+
+  const copyDeliverableCode = (id: string, code: string) => {
     navigator.clipboard.writeText(code);
     setCopiedCodeId(id);
     showToast('Code copied to clipboard!', 'success');
     setTimeout(() => setCopiedCodeId(null), 2000);
   };
 
-  const downloadProjectZip = () => {
-    if (!activeTask) return;
-    const report = activeTask.finalResult || '';
-    const blob = new Blob([report], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `agent-project-${activeTask.id}.md`;
-    a.click();
-    showToast('Agent deliverable package downloaded!', 'success');
-  };
-
-  const getRoleIcon = (role?: string) => {
-    switch (role) {
-      case 'architect': return <Layers className="w-4 h-4 text-cyan-400" />;
-      case 'engineer': return <Code2 className="w-4 h-4 text-emerald-400" />;
-      case 'auditor': return <ShieldCheck className="w-4 h-4 text-amber-400" />;
-      case 'devops': return <Rocket className="w-4 h-4 text-purple-400" />;
-      default: return <Cpu className="w-4 h-4 text-indigo-400" />;
-    }
-  };
-
   return (
     <div className="p-4 lg:p-8 max-w-6xl mx-auto space-y-8 animate-fadeIn">
       
-      {/* Header Banner */}
+      {/* Top Banner */}
       <div className="p-6 rounded-3xl bg-gradient-to-r from-purple-950/70 via-slate-900/90 to-indigo-950/70 border border-purple-500/20 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-2">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 text-xs font-semibold border border-purple-500/30">
-            <Sparkles className="w-3.5 h-3.5 animate-spin" />
-            <span>Autonomous Multi-Agent Swarm</span>
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Autonomous Multi-Step AI Agent</span>
           </div>
-          <h2 className="text-2xl lg:text-3xl font-display font-bold text-white">Autonomous Agent Swarm</h2>
+          <h2 className="text-2xl lg:text-3xl font-display font-bold text-white">Agent Mode</h2>
           <p className="text-slate-300 text-sm max-w-xl">
-            Give Kedar AI any high-level engineering objective. Specialized agents (Architect, Full-Stack Engineer, Security Auditor, and DevOps) collaborate to build complete production deliverables.
+            Input any software or academic goal. The Supervisor Agent decomposes it into structured architectural steps, generates production code and test suites, and enables 1-click database sync.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="px-3.5 py-1.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs text-slate-300 font-mono flex items-center gap-2">
-            <Cpu className="w-3.5 h-3.5 text-purple-400" />
-            <span>Swarm: 4 Agents Active</span>
+        {activeTask && activeTask.status === 'completed' && (
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={handleSaveStepsToTasks}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition-all active:scale-95"
+            >
+              <CheckSquare className="w-3.5 h-3.5" />
+              <span>Save to Tasks</span>
+            </button>
+
+            <button
+              onClick={handleSavePlanToRoadmaps}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 transition-all active:scale-95"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Save to Roadmaps</span>
+            </button>
           </div>
-          <div className="px-3.5 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-400 font-semibold flex items-center gap-1.5">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>ReAct Loop Verified</span>
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* Goal Input Card */}
-      <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xl space-y-4 shadow-xl">
-        <label className="block text-sm font-semibold text-slate-200">
-          What complex objective would you like the Agent Swarm to build?
+      {/* Goal Input Section */}
+      <div className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4 shadow-lg">
+        <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+          <Cpu className="w-4 h-4 text-purple-400" />
+          <span>Describe your target objective or software system:</span>
         </label>
 
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex gap-2">
           <input
             type="text"
+            placeholder="e.g. Build an AI-powered Exam Practice Platform with Supabase RLS and Gemini API..."
             value={goal}
             onChange={(e) => setGoal(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleStartAgent()}
-            placeholder="e.g. Architect and build an AI-powered Code Reviewer with WebSockets and FastAPI..."
-            className="flex-1 px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 text-sm text-slate-100 placeholder-slate-500 outline-none transition-colors"
+            className="flex-1 px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white outline-none focus:border-purple-500"
           />
           <button
             onClick={() => handleStartAgent()}
-            disabled={!goal.trim() || isRunning}
-            className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-600/25 transition-all shrink-0"
+            disabled={isRunning || !goal.trim()}
+            className="px-6 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 font-semibold text-xs text-white shadow-md shadow-purple-600/20 flex items-center gap-2 transition-all active:scale-95"
           >
-            {isRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
-            <span>{isRunning ? 'Swarm Executing...' : 'Deploy Agent Swarm'}</span>
+            {isRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+            <span>{isRunning ? 'Planning & Executing...' : 'Execute Agent'}</span>
           </button>
         </div>
 
-        {/* Suggested Goals */}
-        <div className="space-y-2 pt-2 border-t border-slate-800/60">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">High-Yield Goal Templates:</p>
-          <div className="flex flex-wrap gap-2">
-            {sampleGoals.map((sample, idx) => (
-              <button
-                key={idx}
-                onClick={() => {
-                  setGoal(sample);
-                  handleStartAgent(sample);
-                }}
-                disabled={isRunning}
-                className="text-xs px-3 py-1.5 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white transition-colors text-left disabled:opacity-50"
-              >
-                {sample}
-              </button>
-            ))}
-          </div>
+        {/* Sample Goal Suggestions */}
+        <div className="flex flex-wrap gap-2 pt-1">
+          <span className="text-[11px] font-semibold text-slate-400 self-center">Popular Goals:</span>
+          {sampleGoals.map((g, idx) => (
+            <button
+              key={idx}
+              onClick={() => {
+                setGoal(g);
+                handleStartAgent(g);
+              }}
+              className="px-2.5 py-1 rounded-lg bg-slate-950/80 hover:bg-slate-800 text-[11px] text-slate-300 border border-slate-800 hover:border-purple-500/40 text-left transition-all"
+            >
+              {g.slice(0, 45)}...
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Agent Live Execution Visualization */}
+      {/* Agent Execution Pipeline & Results */}
       {activeTask && (
         <div className="space-y-6">
-          
-          {/* Navigation Sub-Tabs */}
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <div className="flex items-center gap-2">
-              {[
-                { id: 'pipeline', label: 'Agent Pipeline' },
-                { id: 'deliverables', label: `Deliverables (${activeTask.deliverables?.length || 0})` },
-                { id: 'report', label: 'Composite Report' }
-              ].map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                    activeTab === tab.id
-                      ? 'bg-purple-600 text-white shadow-md shadow-purple-600/20'
-                      : 'text-slate-400 hover:text-slate-200 bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+          {/* Navigation Tabs */}
+          <div className="flex items-center gap-2 border-b border-slate-800 pb-1">
+            <button
+              onClick={() => setActiveTab('pipeline')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-xs transition-all ${
+                activeTab === 'pipeline'
+                  ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Layers className="w-4 h-4" />
+              <span>Step Pipeline ({activeTask.steps.length})</span>
+            </button>
 
-            <div className="flex items-center gap-2">
-              <span className={`text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider ${
-                activeTask.status === 'completed' 
-                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
-                  : 'bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse'
-              }`}>
-                {activeTask.status === 'completed' ? '✓ Swarm Finished' : '⚡ Swarm Active'}
-              </span>
+            <button
+              onClick={() => setActiveTab('deliverables')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-xs transition-all ${
+                activeTab === 'deliverables'
+                  ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Box className="w-4 h-4" />
+              <span>Deliverables ({activeTask.deliverables?.length || 0})</span>
+            </button>
 
-              {activeTask.status === 'completed' && (
-                <button
-                  onClick={downloadProjectZip}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white shadow-md"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Download Package</span>
-                </button>
-              )}
-            </div>
+            <button
+              onClick={() => setActiveTab('report')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-xs transition-all ${
+                activeTab === 'report'
+                  ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <FileCode className="w-4 h-4" />
+              <span>Final Report</span>
+            </button>
           </div>
 
-          {/* TAB 1: PIPELINE & STEP INSPECTOR */}
+          {/* Pipeline Tab: Step-by-Step Viewer */}
           {activeTab === 'pipeline' && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               
-              {/* Left Column: Step Sequence (5 Cols) */}
-              <div className="lg:col-span-5 space-y-3">
+              {/* Steps List */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider px-1">Planned Actions</h4>
                 {activeTask.steps.map((step, idx) => (
                   <div
                     key={step.id}
                     onClick={() => setSelectedStepIndex(idx)}
                     className={`p-4 rounded-2xl border cursor-pointer transition-all space-y-2 ${
                       selectedStepIndex === idx
-                        ? 'bg-purple-950/40 border-purple-500/70 shadow-lg shadow-purple-950/40 text-white'
-                        : step.status === 'completed'
-                        ? 'bg-slate-900/80 border-slate-800 hover:border-slate-700 text-slate-300'
-                        : step.status === 'in_progress'
-                        ? 'bg-indigo-950/30 border-indigo-500/50 text-slate-100'
-                        : 'bg-slate-950/50 border-slate-900 text-slate-500'
+                        ? 'bg-purple-950/40 border-purple-500/50 shadow-lg'
+                        : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        {getRoleIcon(step.agentRole)}
-                        <span className="text-xs font-bold">{step.agentName}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        {step.status === 'completed' && <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">Done</span>}
-                        {step.status === 'in_progress' && <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 animate-pulse">Running</span>}
-                        {step.status === 'pending' && <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-500">Queued</span>}
-                      </div>
+                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                        Step {idx + 1}: {step.agentRole || 'Agent'}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
+                        step.status === 'completed'
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          : step.status === 'in_progress'
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse'
+                          : step.status === 'failed'
+                          ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                          : 'bg-slate-800 text-slate-400'
+                      }`}>
+                        {step.status === 'in_progress' ? 'Executing' : step.status === 'completed' ? 'Completed' : step.status === 'failed' ? 'Failed' : 'Planned'}
+                      </span>
                     </div>
-
-                    <h4 className="text-sm font-semibold leading-snug">{step.title}</h4>
-                    <p className="text-xs text-slate-400 line-clamp-2">{step.description}</p>
+                    <h5 className="text-xs font-bold text-white">{step.title}</h5>
+                    <p className="text-[11px] text-slate-400 line-clamp-2">{step.description}</p>
                   </div>
                 ))}
               </div>
 
-              {/* Right Column: Step Output Inspector (7 Cols) */}
-              <div className="lg:col-span-7 space-y-4">
-                {activeTask.steps[selectedStepIndex] ? (
-                  <div className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-xl space-y-4">
+              {/* Step Output Inspection */}
+              <div className="lg:col-span-2 rounded-2xl bg-slate-900/80 border border-slate-800 p-6 space-y-4 shadow-xl">
+                {activeTask.steps[selectedStepIndex] && (
+                  <div className="space-y-4">
                     <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                      <div className="flex items-center gap-2">
-                        {getRoleIcon(activeTask.steps[selectedStepIndex].agentRole)}
-                        <h3 className="font-display font-bold text-sm text-white">
+                      <div>
+                        <span className="text-[11px] text-purple-400 font-bold uppercase tracking-wider">
+                          Phase {selectedStepIndex + 1}
+                        </span>
+                        <h4 className="text-lg font-bold font-display text-white">
                           {activeTask.steps[selectedStepIndex].title}
-                        </h3>
+                        </h4>
                       </div>
-
-                      {activeTask.steps[selectedStepIndex].codeSnippet && (
-                        <button
-                          onClick={() => copyCode(activeTask.steps[selectedStepIndex].codeSnippet!.code, `step-${selectedStepIndex}`)}
-                          className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200"
-                        >
-                          {copiedCodeId === `step-${selectedStepIndex}` ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                          <span>Copy Code</span>
-                        </button>
-                      )}
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold uppercase ${
+                        activeTask.steps[selectedStepIndex].status === 'completed'
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          : activeTask.steps[selectedStepIndex].status === 'in_progress'
+                          ? 'bg-amber-500/20 text-amber-300 animate-pulse'
+                          : 'bg-slate-800 text-slate-400'
+                      }`}>
+                        {activeTask.steps[selectedStepIndex].status}
+                      </span>
                     </div>
 
-                    {activeTask.steps[selectedStepIndex].status === 'in_progress' && !activeTask.steps[selectedStepIndex].output && (
-                      <div className="py-12 flex flex-col items-center justify-center space-y-3 text-slate-400">
-                        <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
-                        <p className="text-xs font-mono">Agent synthesizing code & specs in real-time...</p>
-                      </div>
-                    )}
-
-                    {activeTask.steps[selectedStepIndex].output ? (
-                      <div 
-                        className="markdown-content text-xs sm:text-sm text-slate-200 leading-relaxed bg-slate-950 p-4 rounded-xl border border-slate-800/80 overflow-x-auto max-h-[500px] overflow-y-auto"
-                        dangerouslySetInnerHTML={{ __html: (marked.parse(activeTask.steps[selectedStepIndex].output || '', { async: false }) as string) || activeTask.steps[selectedStepIndex].output! }}
-                      />
-                    ) : activeTask.steps[selectedStepIndex].status === 'pending' ? (
-                      <div className="py-12 text-center text-xs text-slate-500 font-mono">
-                        This phase will execute once prior steps complete.
-                      </div>
-                    ) : null}
-                  </div>
-                ) : (
-                  <div className="p-8 rounded-2xl bg-slate-950 border border-slate-800 text-center text-xs text-slate-400">
-                    Select a step from the left pipeline to inspect its output.
+                    <div className="prose prose-invert prose-sm max-w-none text-slate-200 leading-relaxed overflow-x-auto">
+                      {activeTask.steps[selectedStepIndex].output ? (
+                        <div dangerouslySetInnerHTML={{ __html: marked.parse(activeTask.steps[selectedStepIndex].output || '') as string }} />
+                      ) : (
+                        <p className="text-slate-400 text-xs italic">Step is planned and waiting for execution...</p>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
+
             </div>
           )}
 
-          {/* TAB 2: DELIVERABLES */}
+          {/* Deliverables Tab */}
           {activeTab === 'deliverables' && (
             <div className="space-y-4">
               {activeTask.deliverables && activeTask.deliverables.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {activeTask.deliverables.map((deliv, idx) => (
-                    <div key={deliv.id || idx} className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-xl space-y-3">
+                  {activeTask.deliverables.map(deliv => (
+                    <div key={deliv.id} className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3 shadow-lg">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <FileCode className="w-4 h-4 text-emerald-400" />
-                          <span className="font-mono text-xs font-bold text-white">{deliv.filename}</span>
+                          <FileCode className="w-4 h-4 text-purple-400" />
+                          <span className="text-xs font-bold text-white">{deliv.filename}</span>
                         </div>
+                        <span className="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300 uppercase">
+                          {deliv.language}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400">{deliv.title}</p>
+
+                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800/80">
                         <button
-                          onClick={() => copyCode(deliv.content, deliv.id)}
-                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300"
-                          title="Copy file content"
+                          onClick={() => copyDeliverableCode(deliv.id, deliv.content)}
+                          className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs flex items-center gap-1"
                         >
                           {copiedCodeId === deliv.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                          <span>Copy</span>
+                        </button>
+                        <button
+                          onClick={() => downloadDeliverable(deliv)}
+                          className="px-3 py-1.5 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 text-xs font-semibold flex items-center gap-1 border border-purple-500/30"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>Download</span>
                         </button>
                       </div>
-
-                      <pre className="p-3.5 rounded-xl bg-slate-950 border border-slate-800/80 text-[11px] font-mono text-slate-300 overflow-x-auto max-h-60">
-                        <code>{deliv.content.slice(0, 500)}{deliv.content.length > 500 ? '\n... (truncated)' : ''}</code>
-                      </pre>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="p-12 text-center rounded-2xl bg-slate-950 border border-slate-800 text-xs text-slate-400">
-                  Deliverables will populate here as the agents finish generating code files.
+                <div className="p-12 text-center rounded-2xl bg-slate-900/40 border border-slate-800 text-slate-400">
+                  <p className="text-sm">Execute the agent to generate deliverables.</p>
                 </div>
               )}
             </div>
           )}
 
-          {/* TAB 3: COMPOSITE REPORT */}
+          {/* Report Tab */}
           {activeTab === 'report' && activeTask.finalResult && (
-            <div className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-xl space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-                <h3 className="font-display font-semibold text-sm text-white flex items-center gap-2">
-                  <Box className="w-4 h-4 text-indigo-400" />
-                  <span>Full Project Architecture & Release Specification</span>
-                </h3>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={copyResult}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200"
-                  >
-                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copied ? 'Copied' : 'Copy'}</span>
-                  </button>
-
-                  <button
-                    onClick={downloadProjectZip}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white shadow-md"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download Markdown</span>
-                  </button>
-                </div>
-              </div>
-
+            <div className="p-6 lg:p-8 rounded-3xl bg-slate-900/80 border border-slate-800 space-y-6 shadow-2xl backdrop-blur-xl">
               <div 
-                className="markdown-content text-xs sm:text-sm text-slate-200 leading-relaxed bg-slate-950 p-6 rounded-xl border border-slate-800/80 max-h-[600px] overflow-y-auto"
-                dangerouslySetInnerHTML={{ __html: (marked.parse(activeTask.finalResult || '', { async: false }) as string) || activeTask.finalResult }}
+                className="prose prose-invert prose-sm max-w-none text-slate-200"
+                dangerouslySetInnerHTML={{ __html: marked.parse(activeTask.finalResult) as string }}
               />
             </div>
           )}
-
         </div>
       )}
+
     </div>
   );
 };

@@ -1,108 +1,247 @@
-# ⚡ Kedar AI — Personal AI Super-Copilot & Student Monetization Ecosystem
+# ⚡ Kedar AI — Personal AI Operating System for Students and Developers
 
-> An all-in-one, production-ready AI Assistant and Commercial SaaS Web Application tailored for B.Tech engineering students, coders, and student entrepreneurs. Built with React 19, TypeScript, Vite, Tailwind CSS, Google Gemini 2.5/2.0, Groq Llama 3.3 70B, and Autonomous Multi-Agent Swarms.
+> An all-in-one, full-stack AI workspace and personal operating system tailored for engineering students, developers, and builders. Combines conversational AI, persistent memory context graphs, AI-powered agile task planning, dynamic learning roadmaps, an 8-language coding studio, university exam solvers, and autonomous multi-agent planning.
 
 [![React 19](https://img.shields.io/badge/React-19.0-61dafb?style=for-the-badge&logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178c6?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
 [![Vite](https://img.shields.io/badge/Vite-6.2-646cff?style=for-the-badge&logo=vite)](https://vitejs.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38bdf8?style=for-the-badge&logo=tailwind-css)](https://tailwindcss.com/)
+[![Supabase](https://img.shields.io/badge/Supabase-Auth_&_Postgres_RLS-3ECF8E?style=for-the-badge&logo=supabase)](https://supabase.com/)
 [![Google Gemini](https://img.shields.io/badge/Google_Gemini-2.5_Flash-4285F4?style=for-the-badge&logo=google)](https://ai.google.dev/)
 [![Groq Cloud](https://img.shields.io/badge/Groq-Llama_3.3_70B-F55036?style=for-the-badge&logo=groq)](https://groq.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
 
 ---
 
-## 🌟 Key Capabilities & Features
-
-### 🤖 1. Multi-Provider Real LLM Engine
-- **Google Gemini**: Direct client-side streaming for `gemini-2.5-flash`, `gemini-2.0-flash`, `gemini-1.5-pro`, and `gemini-1.5-flash`.
-- **Groq Cloud (Ultra Fast)**: 800+ tokens/sec inference for `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, and `deepseek-r1-distill-llama-70b`.
-- **OpenAI**: Native support for `gpt-4o`, `gpt-4o-mini`, and `o3-mini`.
-- **OpenRouter**: Access to `deepseek/deepseek-r1` and `anthropic/claude-3.5-sonnet`.
-- **Live Connection Test**: Instant latency and verification ping in Settings.
-- **Smart Offline Contextual Brain**: High-quality contextual fallback when no API key is set.
-
-### 🚀 2. Autonomous Multi-Agent Swarm
-- **Supervisor Agent**: Decomposes complex user goals into specialized autonomous subtasks.
-- **🏛️ System Architect Agent**: Designs system architecture, component trees, and database schemas.
-- **💻 Lead Software Engineer Agent**: Generates type-safe production code (TypeScript, Python, C++, SQL).
-- **🛡️ Security & QA Auditor Agent**: Audits OWASP risks, Big-O complexity, and writes automated test suites.
-- **🚢 DevOps & Release Agent**: Generates Dockerfiles, GitHub Actions CI/CD workflows, and deployment commands.
-- **Interactive Step Inspector**: Real-time code viewer, syntax highlighting, deliverable export, and 1-click download.
-
-### 🎓 3. B.Tech Academic Super-Suite
-- **10-Mark University Exam Solver**: Tuned for VTU, JNTU, SPPU, Anna Univ, AKTU syllabus. Produces structured answers with ASCII diagrams, mathematical derivations, and key memorization scoring points.
-- **🎙️ Live Voice Viva Voce Examiner**: Strict virtual professor asking oral questions with Web Speech Synthesis and evaluating voice responses with dynamic /10 scoring and follow-ups.
-- **📑 1-Click Lab Practical Record Generator**: Generates university-standard writeups (Aim, Requirements, Theory, Flowchart, Source Code, Sample I/O, and Top 5 Viva Questions) with 1-click Print / PDF formatting.
-- **🚀 Capstone Project & IEEE Synopsis Architect**: Full minor/major engineering project blueprints with novelty statement, system architecture diagrams, database schemas, and 12-week milestones.
-
-### 💰 4. Monetization & Business Engine
-- **Subscription Tier System**:
-  - *Free Student Tier*: 5 daily queries.
-  - *Student Pro Tier*: ₹199/month (or ₹499/semester) unlocking unlimited AI, audio viva tests, and lab record downloads.
-  - *Campus Placement Master*: ₹999/year.
-- **Checkout Modal**: Direct zero-fee UPI QR code payment and Razorpay gateway integration with coupon discounts (`KEDAR50`).
-- **Campus Ambassador Referral Hub**: Personalized referral links (`kedarai.app/ref/KEDAR-PRO99`), 30% recurring cash commission per student conversion, and instant UPI withdrawal tracking.
-
-### 💻 5. Coding Studio & Big-O Analyzer
-- Multi-language IDE for Python 3.12, C++20, React/TypeScript, and PostgreSQL.
-- Line-by-line code explanation, bug detection, and mathematical $O(N)$ / $O(\log N)$ Time & Space complexity calculation.
-- 1-Click file downloads (`.py`, `.cpp`, `.tsx`, `.sql`).
-
-### 🎯 6. Career & ATS Resume Coach
-- Real-time resume audit calculating overall ATS score out of 100 with LLM keyword extraction.
-- Automatic **Google XYZ Formula** bullet point rewrites (*"Accomplished [X] measured by [Y] by doing [Z]"*).
-
-### ✍️ 7. Multi-Platform Content Studio
-- Generates high-converting content for LinkedIn, X/Twitter, Instagram, and YouTube across 6 voice tones (*Professional*, *Casual*, *Viral*, *Educational*, *Motivational*, *Hinglish*).
-
-### 🧠 8. Persistent AI Memory Vault & Context Graph
-- Automatically saves user background (skills, current semester, target roles) and injects active memories into prompt context.
+## 📌 1. Project Name
+**Kedar AI — Personal AI Operating System for Students and Developers**
 
 ---
 
-## 🛠️ Technology Stack
+## 💡 2. Problem Statement
+Engineering students and software developers frequently face fragmented workflows across multiple disconnected tools:
+1. **Scattered Information**: Course notes, exam preparation, coding tasks, project architectures, and learning goals live in separate apps without unified context.
+2. **Context Amnesia in AI**: Generic AI chatbots forget past interactions, user background (branch, semester, target role, technical stack), and project constraints.
+3. **Academic & Career Overwhelm**: Students struggle with structured 10-mark university exam answers, viva voce oral examinations, lab records, and ATS-optimized resume formatting.
+4. **Lack of Actionable Execution**: Most AI tools output plain text without directly decomposing goals into manageable task boards or actionable curriculum roadmaps.
 
-- **Frontend Core**: React 19, TypeScript, Vite
-- **Styling**: Tailwind CSS (Dark Cyber-Academic Theme, Glassmorphism, Glow Tokens)
-- **Icons**: Lucide React
-- **Markdown & Code Highlighting**: Marked, PrismJS (C++, Python, TS, SQL, JSX)
-- **Audio & Voice**: Web Speech API (SpeechSynthesis & SpeechRecognition)
-- **AI Service Layer**: Google Gemini API, Groq Cloud API, OpenAI API, OpenRouter API, and Smart Offline Knowledge Engine
-- **Persistence**: LocalStorage with full JSON Backup / Restore + Supabase Sync
+**The Solution:**
+**Kedar AI** unifies conversational intelligence, persistent memory injection, automated agile task decomposition, curriculum generation, a multi-language coding studio, and multi-step autonomous planning into a single secure, responsive full-stack platform.
 
 ---
 
-## 🚀 Quick Start
+## 🌟 3. Features
 
-### 1. Install dependencies
+### ⭐ Core / Must-Have Features
+1. **User Authentication & Profiles**:
+   - Supabase Auth (Sign Up with Full Name, Email & Password, Sign In, Sign Out, Session persistence).
+   - Protected routes and persistent user profile (`profiles` table) with branch, college, current semester, target role, and technical skills.
+2. **AI Assistant & Chat History**:
+   - Multi-provider LLM support (Google Gemini, Groq Llama 3.3 70B, OpenAI GPT-4o, OpenRouter).
+   - Conversation management: Create new chats, rename, pin, and delete conversations.
+   - Message persistence in Supabase PostgreSQL (`conversations` and `messages` tables).
+   - Markdown rendering with PrismJS syntax highlighting and 1-click copy.
+3. **Persistent AI Memory Vault**:
+   - Save user facts, skills, project constraints, and career goals with category and importance tags (`high`, `medium`, `low`).
+   - Search and filter memories in real time.
+   - Automatic prompt injection: Active memories are dynamically injected into AI prompts for hyper-personalized responses.
+4. **AI Task Planner & Agile Board**:
+   - Full CRUD operations with priority (`high`, `medium`, `low`), status (`todo`, `in_progress`, `completed`), and deadlines.
+   - **AI Task Breakdown**: Enter a major goal -> AI generates subtasks -> Review & select -> 1-click save to database.
+   - **AI Priority Suggestion**: Analyzes complexity and timeline to recommend priority with rationale.
+   - **Plan My Day**: Synthesizes time-blocked daily schedule from active tasks.
+5. **Dynamic Learning Roadmaps**:
+   - Enter any skill or topic (e.g. *"Learn Python from beginner to advanced"* or *"Full-Stack Rust & WebAssembly"*).
+   - AI generates phases, topics, practice tasks, and milestone projects.
+   - Save custom roadmaps to database (`learning_roadmaps` and `learning_items` tables), toggle topic completion, and track live progress percentage.
+6. **Coding Studio & Optimization IDE**:
+   - Supports 8 programming languages: **Python, C, C++, JavaScript, TypeScript, HTML, CSS, SQL**.
+   - 4 AI Actions: **Generate Code, Explain Line-by-Line, Debug & Fix, Optimize (Big-O)**.
+   - Interactive source editor, syntax highlighting, and 1-click code download.
+7. **Academic Assistant (10-Mark Exam Solver)**:
+   - Formulates university answers across VTU, JNTU, SPPU, Anna Univ syllabus.
+   - Enforces strict 6-part scoring structure:
+     1. Introduction & Context
+     2. Standard Technical Definition
+     3. Detailed Explanation & ASCII Architecture Diagram
+     4. Concrete Working Example
+     5. Applications & Key Advantages
+     6. Conclusion & 5-Star Memorization Points
+8. **Autonomous Multi-Step Agent Mode**:
+   - Analyzes complex software/academic goals and decomposes them into specialized roles (**Supervisor, Architect, Engineer, Auditor, DevOps**).
+   - Sequential execution with clear status tracking (**Planned, Executing, Completed, Failed**).
+   - **Actionable Execution**: 1-click save agent steps to Task Planner, save plan to Learning Roadmaps, or export code deliverables.
+
+### 🚀 Bonus Features
+- **Voice Viva Voce Examiner**: Strict virtual professor asking oral viva questions with Web Speech Synthesis audio and evaluating voice responses with /10 scoring.
+- **Lab Practical Record Generator**: 1-click printable lab writeups (Aim, Theory, Code, Sample I/O, Top 5 Viva Questions).
+- **Capstone Project & IEEE Synopsis Architect**: Comprehensive minor/major project blueprints with novelty statement, system diagrams, and 12-week milestones.
+- **Career & ATS Resume Coach**: Real-time ATS scoring with Google XYZ formula bullet point rewrites.
+- **Multi-Platform Content Studio**: LinkedIn, Twitter/X, and Instagram post generation across 6 voice tones.
+- **Micro-SaaS Business Idea Vault**: MVP roadmap and monetization blueprint generator.
+- **Campus Ambassador Referral Hub**: Personalized referral links and UPI payout tracking.
+
+---
+
+## 🏗️ 4. System Architecture
+
+```
+                      USER
+                        │
+                        ▼
+                KEDAR AI FRONTEND
+            (React 19 + TypeScript + Vite)
+                        │
+            ┌───────────┴───────────┐
+            ▼                       ▼
+      SUPABASE AUTH           SECURE AI BACKEND
+   (Signup/Login/RLS)        (/api/ai/chat, Edge Fn)
+            │                       │
+            ▼                       ▼
+     User Accounts            AI Provider API
+    (JWT Auth Token)       (Gemini / Groq / OpenAI)
+            │                       │
+            └───────────┬───────────┘
+                        ▼
+                 SUPABASE DATABASE
+                ├── profiles
+                ├── conversations
+                ├── messages
+                ├── tasks
+                ├── memories
+                ├── learning_roadmaps
+                └── learning_items
+```
+
+---
+
+## 🛠️ 5. Technology Stack
+
+- **Frontend**: React 19, TypeScript 5.7, Vite 6.2, Tailwind CSS 3.4
+- **Backend & Auth**: Supabase Auth, Supabase PostgreSQL, Row Level Security (RLS)
+- **AI Server Layer**: Secure Server-Side Proxy (`/api/ai/*`), Node.js Express server, Supabase Edge Functions (`ai-chat`)
+- **AI Providers**: Google Gemini (`gemini-2.0-flash`, `gemini-2.5-flash`), Groq Cloud (`llama-3.3-70b-versatile`), OpenAI (`gpt-4o-mini`), OpenRouter
+- **Icons & UI**: Lucide React, Canvas Confetti
+- **Markdown & Highlighting**: Marked, PrismJS (C, C++, Python, TS, JS, SQL, HTML, CSS)
+- **Voice & Speech**: Web Speech API (SpeechSynthesis & SpeechRecognition)
+
+---
+
+## 🗄️ 6. Database Schema & Security
+
+The database utilizes Supabase PostgreSQL with strict Row Level Security (RLS) policies ensuring users only access their own records:
+
+1. `profiles`: User account metadata, education, branch, college, semester, target role, skills, goals (`id` references `auth.users(id)`).
+2. `conversations`: Chat sessions (`id`, `user_id`, `title`, `category`, `is_pinned`, `created_at`, `updated_at`).
+3. `messages`: Chat message history (`id`, `conversation_id`, `role`, `content`, `created_at`).
+4. `memories`: Persistent context facts (`id`, `user_id`, `content`, `category`, `importance`, `created_at`, `updated_at`).
+5. `tasks`: Engineering task items (`id`, `user_id`, `title`, `description`, `priority`, `status`, `deadline`, `is_completed`, `created_at`).
+6. `learning_roadmaps`: Generated learning paths (`id`, `user_id`, `title`, `description`, `icon`, `estimated_weeks`, `level`, `progress`, `created_at`).
+7. `learning_items`: Roadmap topics and modules (`id`, `roadmap_id`, `title`, `description`, `completed`, `position`).
+8. `business_ideas` & `content_posts`: Auxiliary creative studio stores.
+
+### Database Migration
+The complete database migration script is located at:
+[`supabase/migrations/20260826000000_full_schema.sql`](file:///c:/Users/Kedar%20Swami/OneDrive/Desktop/antigravity/antigravity1/supabase/migrations/20260826000000_full_schema.sql).
+
+---
+
+## 🔐 7. Security Practices
+
+- **Zero Secret Exposure in Frontend**: API keys (`GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENAI_API_KEY`) are kept exclusively on the server side in `.env` and processed via `/api/ai/*` or Supabase Edge Functions.
+- **Row Level Security (RLS)**: Every SQL query validates `auth.uid() = user_id` at the database level.
+- **Safe Authentication**: Uses Supabase Auth tokens over HTTPS with automatic refresh.
+
+---
+
+## 🚀 8. Setup Instructions (Run Locally)
+
+### Prerequisites
+- Node.js (v18.0.0 or higher)
+- npm or yarn
+
+### 1. Clone the repository
+```bash
+git clone https://github.com/your-username/kedar-ai.git
+cd kedar-ai
+```
+
+### 2. Install dependencies
 ```bash
 npm install
 ```
 
-### 2. Configure Environment Variables (Optional)
-Copy `.env.example` to `.env` and add your API keys:
+### 3. Configure Environment Variables
+Copy `.env.example` to `.env`:
 ```bash
 cp .env.example .env
 ```
-*(You can also enter your API keys directly in the Settings UI!)*
 
-### 3. Start development server
+Edit `.env` and fill in your keys:
+```env
+# Supabase
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+
+# Server-Side AI API Keys
+AI_PROVIDER=gemini
+AI_MODEL=gemini-2.0-flash
+GEMINI_API_KEY=your-google-gemini-api-key
+GROQ_API_KEY=your-groq-api-key
+```
+
+### 4. Apply Database Schema
+Execute the SQL statements in [`supabase/migrations/20260826000000_full_schema.sql`](file:///c:/Users/Kedar%20Swami/OneDrive/Desktop/antigravity/antigravity1/supabase/migrations/20260826000000_full_schema.sql) in your Supabase SQL Editor.
+
+### 5. Start Development Server
 ```bash
 npm run dev
 ```
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### 4. Build for production
+---
+
+## 📦 9. Build & Production Deployment
+
+### Build for production
 ```bash
 npm run build
 ```
 
+### Run standalone Node.js production server
+```bash
+npm start
+```
+*(Runs `node server.js` serving `dist/` with secure AI backend endpoints).*
+
+### Deploy Frontend to Vercel
+1. Import repository in [Vercel](https://vercel.com).
+2. Set Build Command: `npm run build` and Output Directory: `dist`.
+3. Add Environment Variables (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`).
+4. Click **Deploy**.
+
 ---
 
-## 🌐 Deploy to Vercel
+## 📸 10. Screenshots
+*(Screenshots of Dashboard, AI Chat Assistant, AI Task Planner, Learning Roadmaps, Coding Studio, 10-Mark Exam Solver, and Agent Mode)*
 
-1. Push your repository to GitHub.
-2. Import project in [Vercel](https://vercel.com).
-3. Set Build Command: `npm run build` and Output Directory: `dist`.
-4. Deploy with 1-click!
+---
+
+## 🌐 11. Live Demo & Repositories
+
+- **Live Application URL**: `https://kedar-ai.vercel.app` *(or your deployed Vercel URL)*
+- **GitHub Repository**: `https://github.com/your-username/kedar-ai`
+- **Workshop Submission Form**: `https://forms.ccbp.in/build-your-ai-automation-platform-workshop-project-submission`
+
+---
+
+## 🔮 12. Future Improvements
+- Multi-modal image and document OCR attachment processing in Chat.
+- Local LLM execution via WebGPU (Wasm / WebLLM) for offline inference.
+- Real-time collaborative peer study rooms and live pair coding.
+- Discord & Telegram bot integrations with Kedar AI memory sync.
+
+---
+
+## 📄 License
+This project is open-source and available under the [MIT License](LICENSE).

@@ -27,7 +27,7 @@ const MainContent: React.FC = () => {
   if (isCloudConfigured && !session) return <AuthView />;
 
   return (
-    <div className="flex min-h-screen bg-slate-950 text-slate-100 selection:bg-indigo-600 selection:text-white">
+    <div className="app-container flex min-h-screen bg-slate-950 text-slate-100 selection:bg-indigo-600 selection:text-white transition-colors duration-200">
       {/* Fixed Left Sidebar */}
       <Sidebar />
 

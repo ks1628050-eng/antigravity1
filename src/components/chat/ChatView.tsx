@@ -33,6 +33,7 @@ export const ChatView: React.FC = () => {
     profile, 
     memories, 
     settings,
+    updateSettings,
     showToast,
     setCurrentSection 
   } = useApp();
@@ -179,9 +180,109 @@ export const ChatView: React.FC = () => {
     'Write a 10-mark University answer on TCP/IP vs OSI Model'
   ];
 
+  const [isQuickKeyModalOpen, setIsQuickKeyModalOpen] = useState(false);
+  const [quickKeyInput, setQuickKeyInput] = useState('');
+  const [isTestingQuickKey, setIsTestingQuickKey] = useState(false);
+
+  const activeProvider = settings.provider || 'gemini';
+  const activeModel = settings.model || 'gemini-2.5-flash';
+
+  const handleQuickSwitchModel = (newProvider: any, newModel: string) => {
+    updateSettings({ provider: newProvider, model: newModel });
+    showToast(`Switched to ${newProvider.toUpperCase()} (${newModel})`, 'success');
+  };
+
+  const handleSaveQuickKey = async () => {
+    if (!quickKeyInput.trim()) return;
+    setIsTestingQuickKey(true);
+    showToast(`Verifying ${activeProvider.toUpperCase()} API Key...`, 'info');
+
+    const result = await aiService.testAPIConnection(activeProvider, quickKeyInput.trim(), activeModel);
+    setIsTestingQuickKey(false);
+
+    if (result.success) {
+      const updates: any = {};
+      if (activeProvider === 'gemini') updates.geminiApiKey = quickKeyInput.trim();
+      else if (activeProvider === 'groq') updates.groqApiKey = quickKeyInput.trim();
+      else if (activeProvider === 'openai') updates.openaiApiKey = quickKeyInput.trim();
+      else if (activeProvider === 'openrouter') updates.openrouterApiKey = quickKeyInput.trim();
+
+      updateSettings(updates);
+      showToast(`Key Verified & Saved! (${result.latencyMs}ms)`, 'success');
+      setIsQuickKeyModalOpen(false);
+      setQuickKeyInput('');
+    } else {
+      showToast(`Verification Failed: ${result.message}`, 'error');
+    }
+  };
+
   return (
     <div className="flex h-[calc(100vh-73px)] overflow-hidden bg-slate-950">
       
+      {/* Quick API Key Modal */}
+      {isQuickKeyModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
+          <div className="w-full max-w-md p-6 rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-indigo-400" />
+                <h3 className="font-display font-bold text-sm text-white">Configure {activeProvider.toUpperCase()} Key</h3>
+              </div>
+              <button 
+                onClick={() => setIsQuickKeyModalOpen(false)}
+                className="text-slate-400 hover:text-white text-xs font-bold px-2 py-1 rounded-lg hover:bg-slate-800"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-300">
+              Enter your API Key for <strong className="text-white">{activeProvider.toUpperCase()}</strong>. It is stored securely in your browser local storage.
+            </p>
+
+            <input
+              type="password"
+              value={quickKeyInput}
+              onChange={(e) => setQuickKeyInput(e.target.value)}
+              placeholder={`Paste your ${activeProvider.toUpperCase()} API key...`}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-white outline-none focus:border-indigo-500"
+            />
+
+            <div className="flex items-center justify-between pt-2">
+              <a 
+                href={
+                  activeProvider === 'gemini' ? 'https://aistudio.google.com/app/apikey'
+                  : activeProvider === 'groq' ? 'https://console.groq.com/keys'
+                  : activeProvider === 'openrouter' ? 'https://openrouter.ai/keys'
+                  : 'https://platform.openai.com/api-keys'
+                } 
+                target="_blank" 
+                rel="noreferrer"
+                className="text-[11px] text-indigo-400 hover:underline"
+              >
+                Get Free {activeProvider.toUpperCase()} Key ↗
+              </a>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsQuickKeyModalOpen(false)}
+                  className="px-3 py-1.5 rounded-xl text-xs text-slate-400 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveQuickKey}
+                  disabled={!quickKeyInput.trim() || isTestingQuickKey}
+                  className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white disabled:opacity-50 shadow-md"
+                >
+                  {isTestingQuickKey ? 'Verifying...' : 'Save & Connect'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 1. Chat History Collapsible Sidebar */}
       <div className={`
         ${showHistorySidebar ? 'w-80' : 'w-0'} 
@@ -275,16 +376,34 @@ export const ChatView: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            <div 
-              onClick={() => setCurrentSection('settings')}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-850 border border-slate-800 text-[11px] font-mono text-slate-300 cursor-pointer transition-colors"
-              title="Click to configure AI Model & API Keys"
+            {/* Quick Model Selector */}
+            <select
+              value={`${activeProvider}:${activeModel}`}
+              onChange={(e) => {
+                const [p, m] = e.target.value.split(':');
+                handleQuickSwitchModel(p, m);
+              }}
+              className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-mono text-slate-200 outline-none cursor-pointer hover:border-slate-700"
             >
-              <Sparkles className="w-3 h-3 text-indigo-400" />
-              <span className="font-semibold text-white uppercase">{settings.provider || 'gemini'}</span>
-              <span className="text-slate-500">•</span>
-              <span className="text-slate-400">{settings.model || 'gemini-2.5-flash'}</span>
-            </div>
+              <option value="kedar-ai:kedar-ai-pro-v1">⚡ Kedar AI Pro (v1.0)</option>
+              <option value="kedar-ai:kedar-ai-coder-2026">⚡ Kedar AI Coder 2026</option>
+              <option value="kedar-ai:kedar-ai-academic-10m">⚡ Kedar AI Academic Solver</option>
+              <option value="gemini:gemini-2.5-flash">✨ Gemini 2.5 Flash</option>
+              <option value="gemini:gemini-2.0-flash">✨ Gemini 2.0 Flash</option>
+              <option value="gemini:gemini-1.5-flash">✨ Gemini 1.5 Flash</option>
+              <option value="groq:llama-3.1-8b-instant">⚡ Groq (Llama 3.1 8B)</option>
+              <option value="groq:llama-3.3-70b-versatile">⚡ Groq (Llama 3.3 70B)</option>
+              <option value="openai:gpt-4o-mini">🟢 OpenAI GPT-4o Mini</option>
+              <option value="openrouter:deepseek/deepseek-r1">🔮 DeepSeek R1 (OpenRouter)</option>
+            </select>
+
+            <button 
+              onClick={() => setIsQuickKeyModalOpen(true)}
+              className="px-2 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 text-[11px] font-semibold text-indigo-300 transition-colors flex items-center gap-1"
+              title="Add or edit API key"
+            >
+              <span>🔑 Key</span>
+            </button>
           </div>
         </div>
 

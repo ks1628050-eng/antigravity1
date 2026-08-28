@@ -2,13 +2,14 @@ import React, { useState } from 'react';
 import { 
   GraduationCap, Sparkles, BookOpen, CheckCircle2, 
   HelpCircle, Trophy, Clock, ArrowRight, Play, 
-  Code2, RotateCcw, Award, Check, X
+  Code2, RotateCcw, Award, Check, X, Plus, Trash2,
+  Calendar, Layers, Target, CheckSquare
 } from 'lucide-react';
 import { marked } from 'marked';
 import confetti from 'canvas-confetti';
 import { useApp } from '../../context/AppContext';
 import { aiService } from '../../services/aiService';
-import { QuizQuestion } from '../../types';
+import { QuizQuestion, LearningRoadmap } from '../../types';
 
 const sampleQuizzes: Record<string, QuizQuestion[]> = {
   react: [
@@ -48,11 +49,18 @@ const sampleQuizzes: Record<string, QuizQuestion[]> = {
 };
 
 export const LearningView: React.FC = () => {
-  const { roadmaps, profile, memories, settings, showToast } = useApp();
+  const { roadmaps, addRoadmap, deleteRoadmap, toggleTopicCompletion, profile, memories, settings, showToast } = useApp();
   
   const [activeTab, setActiveTab] = useState<'roadmaps' | 'explainer' | 'quiz'>('roadmaps');
-  const [selectedRoadmap, setSelectedRoadmap] = useState(roadmaps[0]);
+  const [selectedRoadmapId, setSelectedRoadmapId] = useState<string>(roadmaps[0]?.id || '');
   
+  // Custom AI Roadmap Generation State
+  const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
+  const [topicInput, setTopicInput] = useState('');
+  const [targetLevel, setTargetLevel] = useState<'Beginner' | 'Intermediate' | 'Advanced'>('Beginner');
+  const [estimatedWeeks, setEstimatedWeeks] = useState(6);
+  const [isGeneratingRoadmap, setIsGeneratingRoadmap] = useState(false);
+
   // Topic Explainer state
   const [topicPrompt, setTopicPrompt] = useState('');
   const [isExplaining, setIsExplaining] = useState(false);
@@ -65,7 +73,36 @@ export const LearningView: React.FC = () => {
   const [score, setScore] = useState(0);
   const [quizFinished, setQuizFinished] = useState(false);
 
+  const selectedRoadmap = roadmaps.find(r => r.id === selectedRoadmapId) || roadmaps[0];
   const currentQuestions = sampleQuizzes.react;
+
+  const handleCreateRoadmap = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!topicInput.trim() || isGeneratingRoadmap) return;
+
+    setIsGeneratingRoadmap(true);
+    showToast(`Generating custom curriculum for "${topicInput}"...`, 'info');
+
+    try {
+      const generated = await aiService.generateLearningRoadmap(
+        topicInput,
+        targetLevel,
+        estimatedWeeks,
+        { profile, memories, settings }
+      );
+
+      await addRoadmap(generated);
+      setSelectedRoadmapId(generated.id);
+      setIsGenerateModalOpen(false);
+      setTopicInput('');
+      showToast('New AI Learning Roadmap generated and saved!', 'success');
+      confetti({ particleCount: 50, spread: 60 });
+    } catch (err) {
+      showToast('Failed to generate roadmap', 'error');
+    } finally {
+      setIsGeneratingRoadmap(false);
+    }
+  };
 
   const handleExplainTopic = async (topic?: string) => {
     const query = topic || topicPrompt;
@@ -99,17 +136,18 @@ Format with:
     }
   };
 
-  const handleSelectOption = (idx: number) => {
+  const handleOptionSelect = (index: number) => {
     if (isAnswerSubmitted) return;
-    setSelectedOption(idx);
+    setSelectedOption(index);
   };
 
-  const handleSubmitAnswer = () => {
+  const handleQuizSubmit = () => {
     if (selectedOption === null) return;
     setIsAnswerSubmitted(true);
-    const isCorrect = selectedOption === currentQuestions[currentQuizIndex].correctAnswer;
-    if (isCorrect) {
+
+    if (selectedOption === currentQuestions[currentQuizIndex].correctAnswer) {
       setScore(prev => prev + 1);
+      confetti({ particleCount: 40, spread: 50 });
     }
   };
 
@@ -120,7 +158,6 @@ Format with:
       setIsAnswerSubmitted(false);
     } else {
       setQuizFinished(true);
-      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
     }
   };
 
@@ -136,289 +173,371 @@ Format with:
     <div className="p-4 lg:p-8 max-w-6xl mx-auto space-y-8 animate-fadeIn">
       
       {/* Top Banner */}
-      <div className="p-6 rounded-3xl bg-gradient-to-r from-indigo-950/70 via-slate-900/90 to-purple-950/70 border border-indigo-500/20 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="p-6 rounded-3xl bg-gradient-to-r from-emerald-950/70 via-slate-900/90 to-indigo-950/70 border border-emerald-500/20 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-2">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-semibold border border-indigo-500/30">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-semibold border border-emerald-500/30">
             <GraduationCap className="w-3.5 h-3.5" />
-            <span>Academic & Skill Mastery</span>
+            <span>Curriculum & Mastery Engine</span>
           </div>
-          <h2 className="text-2xl lg:text-3xl font-display font-bold text-white">Learning Hub & Quizzes</h2>
+          <h2 className="text-2xl lg:text-3xl font-display font-bold text-white">AI Learning Roadmaps</h2>
           <p className="text-slate-300 text-sm max-w-xl">
-            Master engineering topics, explore comprehensive branch roadmaps, and test your knowledge with timed quizzes.
+            Personalized engineering roadmaps tailored to your college semester and target roles. Generate custom curriculums with phases, topics, and practice projects.
           </p>
         </div>
 
-        {/* Navigation Tabs */}
-        <div className="flex items-center p-1.5 rounded-2xl bg-slate-900/80 border border-slate-800 self-start md:self-auto">
-          <button
-            onClick={() => setActiveTab('roadmaps')}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
-              activeTab === 'roadmaps' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Roadmaps
-          </button>
-          <button
-            onClick={() => setActiveTab('explainer')}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
-              activeTab === 'explainer' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Topic Explainer
-          </button>
-          <button
-            onClick={() => setActiveTab('quiz')}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
-              activeTab === 'quiz' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Quiz Arena
-          </button>
-        </div>
+        <button
+          onClick={() => setIsGenerateModalOpen(true)}
+          className="flex items-center gap-2 px-5 py-3 rounded-xl font-semibold text-xs text-slate-900 bg-emerald-400 hover:bg-emerald-300 shadow-md shadow-emerald-400/20 transition-all active:scale-95 self-start md:self-auto"
+        >
+          <Sparkles className="w-4 h-4" />
+          <span>Generate AI Roadmap</span>
+        </button>
       </div>
 
-      {/* 1. ROADMAPS TAB */}
+      {/* Tabs */}
+      <div className="flex items-center gap-2 border-b border-slate-800 pb-1">
+        <button
+          onClick={() => setActiveTab('roadmaps')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-xs transition-all ${
+            activeTab === 'roadmaps'
+              ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <BookOpen className="w-4 h-4" />
+          <span>My Roadmaps ({roadmaps.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('explainer')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-xs transition-all ${
+            activeTab === 'explainer'
+              ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Sparkles className="w-4 h-4" />
+          <span>AI Concept Explainer</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('quiz')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-xs transition-all ${
+            activeTab === 'quiz'
+              ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <HelpCircle className="w-4 h-4" />
+          <span>Interactive Quiz</span>
+        </button>
+      </div>
+
+      {/* Tab 1: Roadmaps View */}
       {activeTab === 'roadmaps' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Roadmap Selector */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Curated Roadmaps:</h3>
-            {roadmaps.map((r) => (
+          
+          {/* Left Roadmap List */}
+          <div className="space-y-3">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider px-1">Curriculums</h3>
+            {roadmaps.map(r => (
               <div
                 key={r.id}
-                onClick={() => setSelectedRoadmap(r)}
-                className={`p-4 rounded-2xl border cursor-pointer transition-all space-y-2.5 ${
-                  selectedRoadmap.id === r.id
-                    ? 'bg-indigo-950/40 border-indigo-500/50 shadow-lg shadow-indigo-950/50'
-                    : 'bg-slate-900/50 border-slate-800/80 hover:border-slate-700'
+                onClick={() => setSelectedRoadmapId(r.id)}
+                className={`p-4 rounded-2xl border cursor-pointer transition-all space-y-2 relative ${
+                  selectedRoadmap?.id === r.id
+                    ? 'bg-indigo-950/40 border-indigo-500/50 shadow-lg'
+                    : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700'
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300">
-                    {r.level}
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    {r.level} • {r.estimatedWeeks}w
                   </span>
-                  <span className="text-xs font-mono font-semibold text-slate-400">{r.estimatedWeeks} Weeks</span>
+                  <span className="text-xs font-bold text-indigo-300">{r.progress}%</span>
                 </div>
-                <h4 className="font-semibold text-white text-base">{r.title}</h4>
-                <p className="text-xs text-slate-400 line-clamp-2">{r.description}</p>
-                <div className="pt-2">
-                  <div className="flex justify-between text-[11px] font-semibold text-slate-400 mb-1">
-                    <span>Progress</span>
-                    <span>{r.progress}%</span>
-                  </div>
-                  <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${r.progress}%` }} />
-                  </div>
+                <h4 className="text-sm font-bold text-white">{r.title}</h4>
+                <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-indigo-500 to-emerald-400 rounded-full transition-all duration-500"
+                    style={{ width: `${r.progress}%` }}
+                  />
                 </div>
               </div>
             ))}
           </div>
 
-          {/* Right Roadmap Details */}
-          <div className="lg:col-span-2 p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xl space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-              <div>
-                <h3 className="font-display font-bold text-xl text-white">{selectedRoadmap.title}</h3>
-                <p className="text-xs text-slate-400 mt-1">{selectedRoadmap.description}</p>
-              </div>
-              <button
-                onClick={() => handleExplainTopic(selectedRoadmap.title)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white transition-colors"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Explain Full Roadmap</span>
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              {selectedRoadmap.modules.map((mod, idx) => (
-                <div key={mod.id} className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-semibold text-sm text-slate-200 flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-lg bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center text-xs font-bold">
-                        {idx + 1}
-                      </span>
-                      <span>{mod.title}</span>
-                    </h4>
-                    {mod.completed && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                        COMPLETED
-                      </span>
-                    )}
+          {/* Right Roadmap Details & Interactive Modules */}
+          {selectedRoadmap && (
+            <div className="lg:col-span-2 space-y-6">
+              <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <span className="text-xs text-indigo-400 font-semibold">{selectedRoadmap.level} Level Curriculum</span>
+                    <h3 className="text-xl font-bold font-display text-white">{selectedRoadmap.title}</h3>
+                    <p className="text-xs text-slate-400">{selectedRoadmap.description}</p>
                   </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                    {mod.topics.map((t, tIdx) => (
-                      <div
-                        key={tIdx}
-                        onClick={() => handleExplainTopic(`${t} in ${selectedRoadmap.title}`)}
-                        className="p-2 rounded-lg bg-slate-900 hover:bg-slate-850 border border-slate-800/80 hover:border-indigo-500/40 text-xs text-slate-300 hover:text-white cursor-pointer transition-all flex items-center justify-between group"
-                      >
-                        <span className="truncate">{t}</span>
-                        <ArrowRight className="w-3 h-3 text-slate-500 group-hover:text-indigo-400 shrink-0" />
-                      </div>
-                    ))}
-                  </div>
+                  <button
+                    onClick={() => deleteRoadmap(selectedRoadmap.id)}
+                    className="p-2 rounded-xl text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                    title="Delete Roadmap"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
-              ))}
+
+                <div className="flex items-center gap-4 text-xs text-slate-400 pt-2 border-t border-slate-800/80">
+                  <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-indigo-400" /> {selectedRoadmap.estimatedWeeks} Weeks</span>
+                  <span className="flex items-center gap-1"><Target className="w-3.5 h-3.5 text-emerald-400" /> Progress: {selectedRoadmap.progress}%</span>
+                </div>
+              </div>
+
+              {/* Modules List */}
+              <div className="space-y-4">
+                {selectedRoadmap.modules.map(mod => (
+                  <div key={mod.id} className="p-5 rounded-2xl bg-slate-900/40 border border-slate-800/80 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                        <CheckSquare className={`w-4 h-4 ${mod.completed ? 'text-emerald-400' : 'text-slate-500'}`} />
+                        <span>{mod.title}</span>
+                      </h4>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                        mod.completed ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'
+                      }`}>
+                        {mod.completed ? 'Completed' : 'In Progress'}
+                      </span>
+                    </div>
+
+                    <div className="space-y-2">
+                      {mod.topics.map((topic, tIdx) => (
+                        <div
+                          key={tIdx}
+                          className="flex items-center justify-between p-3 rounded-xl bg-slate-950/60 border border-slate-800/60 text-xs"
+                        >
+                          <span className="text-slate-300 font-medium">{topic}</span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleExplainTopic(topic)}
+                              className="px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 text-[11px] font-semibold flex items-center gap-1"
+                            >
+                              <Sparkles className="w-3 h-3" />
+                              <span>Teach Me</span>
+                            </button>
+                            <button
+                              onClick={() => toggleTopicCompletion(selectedRoadmap.id, mod.id, tIdx)}
+                              className={`p-1.5 rounded-lg transition-colors ${
+                                mod.completed ? 'text-emerald-400 bg-emerald-500/10' : 'text-slate-500 hover:text-emerald-400'
+                              }`}
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 
-      {/* 2. TOPIC EXPLAINER TAB */}
+      {/* Tab 2: AI Concept Explainer */}
       {activeTab === 'explainer' && (
         <div className="space-y-6">
-          <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xl space-y-4">
-            <h3 className="font-display font-semibold text-lg text-white">AI Concept Explainer & Masterclass</h3>
-            <div className="flex gap-3">
+          <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4">
+            <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-indigo-400" />
+              <span>Ask AI to Explain Any Concept</span>
+            </h3>
+            <div className="flex gap-2">
               <input
                 type="text"
+                placeholder="e.g. Virtual Memory and Paging, Banker's Algorithm, React 19 useActionState..."
                 value={topicPrompt}
                 onChange={(e) => setTopicPrompt(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleExplainTopic()}
-                placeholder="e.g. Teach me React 19 Actions from scratch, or Virtual Memory Paging..."
-                className="flex-1 px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 focus:border-indigo-500 text-sm text-slate-100 placeholder-slate-500 outline-none"
+                className="flex-1 px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white outline-none focus:border-indigo-500"
               />
               <button
                 onClick={() => handleExplainTopic()}
-                disabled={!topicPrompt.trim() || isExplaining}
-                className="px-6 py-3 rounded-xl font-semibold text-sm text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 transition-colors flex items-center gap-2"
+                disabled={isExplaining || !topicPrompt.trim()}
+                className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 font-semibold text-xs text-white shadow-md shadow-indigo-600/20 transition-all flex items-center gap-2"
               >
                 <Sparkles className="w-4 h-4" />
-                <span>{isExplaining ? 'Synthesizing...' : 'Explain'}</span>
+                <span>{isExplaining ? 'Teaching...' : 'Explain'}</span>
               </button>
             </div>
           </div>
 
           {explanationResult && (
-            <div className="p-6 rounded-2xl bg-slate-900/70 border border-slate-800/80 backdrop-blur-xl">
+            <div className="p-6 lg:p-8 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4 backdrop-blur-xl">
               <div 
-                className="markdown-content text-sm text-slate-200 leading-relaxed bg-slate-950 p-6 rounded-xl border border-slate-800/80"
-                dangerouslySetInnerHTML={{ __html: (marked.parse(explanationResult || '', { async: false }) as string) || explanationResult }}
+                className="prose prose-invert prose-sm max-w-none text-slate-200"
+                dangerouslySetInnerHTML={{ __html: marked.parse(explanationResult) as string }}
               />
             </div>
           )}
         </div>
       )}
 
-      {/* 3. QUIZ ARENA TAB */}
+      {/* Tab 3: Interactive Quiz */}
       {activeTab === 'quiz' && (
-        <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xl max-w-3xl mx-auto space-y-6">
+        <div className="max-w-2xl mx-auto p-6 lg:p-8 rounded-3xl bg-slate-900/80 border border-slate-800 space-y-6 shadow-2xl">
           {!quizFinished ? (
             <div className="space-y-6">
-              {/* Quiz Header */}
-              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-                <div>
-                  <span className="text-xs font-bold px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                    {currentQuestions[currentQuizIndex].category}
-                  </span>
-                  <h3 className="font-display font-semibold text-base text-white mt-1.5">
-                    Question {currentQuizIndex + 1} of {currentQuestions.length}
-                  </h3>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs font-semibold text-slate-400">Current Score</p>
-                  <p className="text-lg font-bold font-mono text-emerald-400">{score} / {currentQuestions.length}</p>
-                </div>
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <span className="text-xs font-semibold text-indigo-400">
+                  Question {currentQuizIndex + 1} of {currentQuestions.length}
+                </span>
+                <span className="text-xs font-bold text-emerald-400">Score: {score}</span>
               </div>
 
-              {/* Question Text */}
-              <h4 className="text-lg font-semibold text-slate-100 leading-snug">
+              <h3 className="text-base font-bold text-white">
                 {currentQuestions[currentQuizIndex].question}
-              </h4>
+              </h3>
 
-              {/* Options */}
-              <div className="space-y-3">
-                {currentQuestions[currentQuizIndex].options.map((opt, idx) => {
-                  let optStyle = 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700';
-                  if (selectedOption === idx) {
-                    optStyle = 'bg-indigo-950/60 border-indigo-500 text-indigo-200 shadow-md shadow-indigo-950/40';
-                  }
-                  if (isAnswerSubmitted) {
-                    if (idx === currentQuestions[currentQuizIndex].correctAnswer) {
-                      optStyle = 'bg-emerald-950/60 border-emerald-500 text-emerald-200 shadow-md shadow-emerald-950/40';
-                    } else if (selectedOption === idx) {
-                      optStyle = 'bg-rose-950/60 border-rose-500 text-rose-200';
-                    }
-                  }
-
-                  return (
-                    <button
-                      key={idx}
-                      onClick={() => handleSelectOption(idx)}
-                      disabled={isAnswerSubmitted}
-                      className={`w-full text-left p-4 rounded-xl border text-sm font-medium transition-all flex items-center justify-between ${optStyle}`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="w-6 h-6 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-xs font-mono font-bold">
-                          {String.fromCharCode(65 + idx)}
-                        </span>
-                        <span>{opt}</span>
-                      </div>
-
-                      {isAnswerSubmitted && idx === currentQuestions[currentQuizIndex].correctAnswer && (
-                        <Check className="w-5 h-5 text-emerald-400" />
-                      )}
-                      {isAnswerSubmitted && selectedOption === idx && idx !== currentQuestions[currentQuizIndex].correctAnswer && (
-                        <X className="w-5 h-5 text-rose-400" />
-                      )}
-                    </button>
-                  );
-                })}
+              <div className="space-y-2.5">
+                {currentQuestions[currentQuizIndex].options.map((opt, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handleOptionSelect(idx)}
+                    className={`w-full text-left p-3.5 rounded-xl border text-xs font-medium transition-all ${
+                      isAnswerSubmitted
+                        ? idx === currentQuestions[currentQuizIndex].correctAnswer
+                          ? 'bg-emerald-500/20 border-emerald-500 text-emerald-200'
+                          : selectedOption === idx
+                          ? 'bg-rose-500/20 border-rose-500 text-rose-200'
+                          : 'bg-slate-950 border-slate-800 text-slate-400'
+                        : selectedOption === idx
+                        ? 'bg-indigo-600/20 border-indigo-500 text-indigo-200'
+                        : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
+                    }`}
+                  >
+                    {opt}
+                  </button>
+                ))}
               </div>
 
-              {/* Explanation (if answered) */}
               {isAnswerSubmitted && (
                 <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 space-y-1">
-                  <p className="font-semibold text-indigo-400">💡 AI Explanation:</p>
+                  <span className="font-bold text-indigo-400">Explanation:</span>
                   <p>{currentQuestions[currentQuizIndex].explanation}</p>
                 </div>
               )}
 
-              {/* Action Buttons */}
               <div className="flex justify-end gap-3 pt-2">
                 {!isAnswerSubmitted ? (
                   <button
-                    onClick={handleSubmitAnswer}
+                    onClick={handleQuizSubmit}
                     disabled={selectedOption === null}
-                    className="px-6 py-2.5 rounded-xl font-semibold text-sm text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 transition-colors"
+                    className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-xs font-semibold text-white shadow-md shadow-indigo-600/20"
                   >
                     Submit Answer
                   </button>
                 ) : (
                   <button
                     onClick={handleNextQuestion}
-                    className="px-6 py-2.5 rounded-xl font-semibold text-sm text-white bg-emerald-600 hover:bg-emerald-500 transition-colors flex items-center gap-2"
+                    className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white shadow-md shadow-emerald-600/20 flex items-center gap-1.5"
                   >
-                    <span>{currentQuizIndex + 1 === currentQuestions.length ? 'View Score' : 'Next Question'}</span>
+                    <span>Next Question</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 )}
               </div>
             </div>
           ) : (
-            <div className="text-center py-10 space-y-6">
-              <div className="w-20 h-20 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center mx-auto">
-                <Trophy className="w-10 h-10" />
-              </div>
-              <div className="space-y-2">
-                <h3 className="text-2xl font-display font-bold text-white">Quiz Completed!</h3>
-                <p className="text-slate-300 text-sm">
-                  You scored <strong className="text-emerald-400 font-mono text-lg">{score} / {currentQuestions.length}</strong> (
-                  {Math.round((score / currentQuestions.length) * 100)}%)
-                </p>
-              </div>
-
+            <div className="text-center py-8 space-y-4">
+              <Award className="w-12 h-12 mx-auto text-amber-400" />
+              <h3 className="text-xl font-bold font-display text-white">Quiz Completed!</h3>
+              <p className="text-sm text-slate-300">
+                You scored <strong className="text-emerald-400">{score}</strong> out of <strong>{currentQuestions.length}</strong> ({Math.round((score / currentQuestions.length) * 100)}%).
+              </p>
               <button
                 onClick={resetQuiz}
-                className="px-6 py-2.5 rounded-xl font-semibold text-sm text-white bg-indigo-600 hover:bg-indigo-500 transition-colors inline-flex items-center gap-2"
+                className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white shadow-md shadow-indigo-600/20"
               >
-                <RotateCcw className="w-4 h-4" />
-                <span>Retake Quiz</span>
+                Take Quiz Again
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Custom AI Roadmap Generator Modal */}
+      {isGenerateModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-lg rounded-3xl bg-slate-900 border border-slate-800 p-6 space-y-5 shadow-2xl animate-scaleUp">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2 text-emerald-400">
+                <Sparkles className="w-5 h-5" />
+                <h3 className="text-lg font-bold font-display text-white">Generate AI Roadmap</h3>
+              </div>
+              <button onClick={() => setIsGenerateModalOpen(false)} className="p-1 rounded-lg text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateRoadmap} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-300">Skill or Topic to Master</label>
+                <input
+                  required
+                  type="text"
+                  placeholder="e.g. Learn Python from beginner to advanced, Rust WebAssembly, Cloud DevOps"
+                  value={topicInput}
+                  onChange={(e) => setTopicInput(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-300">Target Level</label>
+                  <select
+                    value={targetLevel}
+                    onChange={(e) => setTargetLevel(e.target.value as any)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white outline-none focus:border-emerald-500"
+                  >
+                    <option value="Beginner">Beginner</option>
+                    <option value="Intermediate">Intermediate</option>
+                    <option value="Advanced">Advanced</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-300">Duration (Weeks)</label>
+                  <input
+                    type="number"
+                    min={2}
+                    max={24}
+                    value={estimatedWeeks}
+                    onChange={(e) => setEstimatedWeeks(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsGenerateModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isGeneratingRoadmap || !topicInput.trim()}
+                  className="px-5 py-2.5 rounded-xl text-xs font-semibold text-slate-900 bg-emerald-400 hover:bg-emerald-300 disabled:opacity-50 shadow-md shadow-emerald-400/20 flex items-center gap-1.5"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>{isGeneratingRoadmap ? 'Synthesizing Roadmap...' : 'Generate Roadmap'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

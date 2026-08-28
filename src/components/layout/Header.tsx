@@ -123,13 +123,28 @@ export const Header: React.FC = () => {
             {settings.voiceSynthesis ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
           </button>
 
-          {/* Theme Toggle */}
+          {/* Theme Toggle (Sun / Moon) */}
           <button
             onClick={toggleTheme}
-            title="Toggle Dark/Light Mode"
-            className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all"
+            title={settings.theme === 'dark' ? 'Switch to Light Mode (Sun ☀️)' : 'Switch to Dark Mode (Moon 🌙)'}
+            aria-label="Toggle Dark and Light Mode"
+            className={`group relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border transition-all duration-300 active:scale-95 ${
+              settings.theme === 'dark'
+                ? 'bg-slate-900/90 border-slate-800 text-slate-300 hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-300'
+                : 'bg-white border-slate-300 text-slate-700 hover:border-indigo-500/50 hover:bg-indigo-50 hover:text-indigo-600 shadow-sm'
+            }`}
           >
-            {settings.theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-400" />}
+            {settings.theme === 'dark' ? (
+              <>
+                <Sun className="w-4 h-4 text-amber-400 transition-transform duration-300 group-hover:rotate-90 group-hover:scale-110" />
+                <span className="text-[11px] font-semibold tracking-wide hidden sm:inline text-amber-300">Light</span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-4 h-4 text-indigo-600 transition-transform duration-300 group-hover:-rotate-12 group-hover:scale-110" />
+                <span className="text-[11px] font-semibold tracking-wide hidden sm:inline text-indigo-600">Dark</span>
+              </>
+            )}
           </button>
         </div>
       </header>

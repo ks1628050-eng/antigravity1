@@ -332,8 +332,8 @@ export const initialBusinessIdeas: BusinessIdea[] = [
 ];
 
 export const initialSettings: AISettings = {
-  provider: 'gemini',
-  model: 'gemini-2.5-flash',
+  provider: 'kedar-ai',
+  model: 'kedar-ai-pro-v1',
   temperature: 0.7,
   theme: 'dark',
   autoSaveMemory: true,

@@ -4,7 +4,7 @@ import {
   Download, Upload, RotateCcw, Check, Eye, EyeOff,
   Sparkles, ShieldCheck, Copy, ExternalLink, AlertCircle,
   IndianRupee, Key, QrCode, Smartphone, Zap, CheckCircle2,
-  Loader2, Cpu
+  Loader2, Cpu, Sun, Moon, Palette, Volume2, VolumeX, Brain
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { storageService } from '../../services/storageService';
@@ -15,7 +15,7 @@ import { aiService, getApiKey } from '../../services/aiService';
 export const SettingsView: React.FC = () => {
   const { profile, updateProfile, settings, updateSettings, showToast } = useApp();
   
-  const [activeTab, setActiveTab] = useState<'profile' | 'ai' | 'business' | 'data'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'ai' | 'appearance' | 'business' | 'data'>('profile');
   
   // Profile state
   const [name, setName] = useState(profile.name);
@@ -39,6 +39,9 @@ export const SettingsView: React.FC = () => {
   const [openaiApiKey, setOpenaiApiKey] = useState(settings.openaiApiKey || '');
   const [openrouterApiKey, setOpenrouterApiKey] = useState(settings.openrouterApiKey || '');
   const [customPrompt, setCustomPrompt] = useState(settings.customSystemPrompt || '');
+  const [activeTheme, setActiveTheme] = useState<'dark' | 'light'>(settings.theme || 'dark');
+  const [voiceSynthesis, setVoiceSynthesis] = useState<boolean>(settings.voiceSynthesis ?? true);
+  const [autoSaveMemory, setAutoSaveMemory] = useState<boolean>(settings.autoSaveMemory ?? true);
 
   // Key Visibility
   const [showGeminiKey, setShowGeminiKey] = useState(false);
@@ -179,6 +182,12 @@ export const SettingsView: React.FC = () => {
   };
 
   const modelPresets: Record<string, { model: string; label: string; desc: string }[]> = {
+    'kedar-ai': [
+      { model: 'kedar-ai-pro-v1', label: 'Kedar AI Pro (v1.0)', desc: 'Autonomous neural cognitive engine & multi-agent swarm router' },
+      { model: 'kedar-ai-coder-2026', label: 'Kedar AI Coder 2026', desc: 'Specialized for Python 3.12, Modern C++20, and Big-O derivations' },
+      { model: 'kedar-ai-academic-10m', label: 'Kedar AI Academic Solver', desc: 'Tuned for 10-mark university exams, ASCII diagrams, and oral viva' },
+      { model: 'kedar-ai-agent-swarm', label: 'Kedar AI Autonomous Swarm', desc: 'Architect, Engineer, QA Auditor, and Cloud DevOps 4-tier pipeline' }
+    ],
     gemini: [
       { model: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Recommended)', desc: 'Next-gen flagship, multimodal, ultra-fast & low latency' },
       { model: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', desc: 'Complex reasoning, deep STEM mathematics & code generation' },
@@ -227,8 +236,8 @@ export const SettingsView: React.FC = () => {
         </div>
 
         {/* Tab navigation */}
-        <div className="flex flex-wrap items-center p-1.5 rounded-2xl bg-slate-950 border border-slate-800 self-start md:self-auto gap-0.5">
-          {(['profile', 'ai', 'business', 'data'] as const).map(tab => (
+        <div className="flex flex-wrap items-center p-1.5 rounded-2xl bg-slate-950 border border-slate-800 self-start md:self-auto gap-1">
+          {(['profile', 'ai', 'appearance', 'business', 'data'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -236,7 +245,10 @@ export const SettingsView: React.FC = () => {
                 activeTab === tab ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              {tab === 'ai' ? '🤖 AI Models & Keys' : tab === 'business' ? '💰 Payments' : tab === 'data' ? '💾 Backup & Data' : '👤 Profile'}
+              {tab === 'ai' ? '🤖 AI Models & Keys' :
+               tab === 'appearance' ? '☀️ / 🌙 Appearance' :
+               tab === 'business' ? '💰 Payments' :
+               tab === 'data' ? '💾 Backup & Data' : '👤 Profile'}
             </button>
           ))}
         </div>
@@ -280,26 +292,29 @@ export const SettingsView: React.FC = () => {
                   type="text"
                   value={education}
                   onChange={(e) => setEducation(e.target.value)}
+                  placeholder="e.g. B.Tech Computer Science"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 outline-none focus:border-indigo-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Branch / Specialization</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Department / Branch</label>
                 <input
                   type="text"
                   value={branch}
                   onChange={(e) => setBranch(e.target.value)}
+                  placeholder="e.g. CSE / AIML / ECE / IT"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 outline-none focus:border-indigo-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Semester</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Current Semester</label>
                 <input
                   type="text"
                   value={semester}
                   onChange={(e) => setSemester(e.target.value)}
+                  placeholder="e.g. 6th Semester"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 outline-none focus:border-indigo-500"
                 />
               </div>
@@ -312,142 +327,142 @@ export const SettingsView: React.FC = () => {
                   type="text"
                   value={college}
                   onChange={(e) => setCollege(e.target.value)}
+                  placeholder="e.g. IIT Bombay / VTU / JNTU / SPPU"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 outline-none focus:border-indigo-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Target Role</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Target Role / Career Goal</label>
                 <input
                   type="text"
                   value={targetRole}
                   onChange={(e) => setTargetRole(e.target.value)}
+                  placeholder="e.g. Full Stack AI Engineer / SDE-1"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 outline-none focus:border-indigo-500"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">Core Technical Skills (comma separated)</label>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">Key Technical Skills (comma separated)</label>
               <input
                 type="text"
                 value={skillsStr}
                 onChange={(e) => setSkillsStr(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 outline-none focus:border-indigo-500"
+                placeholder="React, TypeScript, Python, C++, Node.js, SQL, Docker, AWS"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 outline-none focus:border-indigo-500 font-mono"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">Current Key Projects (comma separated)</label>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">Active Projects</label>
               <input
                 type="text"
                 value={projectsStr}
                 onChange={(e) => setProjectsStr(e.target.value)}
+                placeholder="Kedar AI Workspace, Autonomous Agent Swarm, Lab Practical Solver"
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 outline-none focus:border-indigo-500"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">Short Bio & Engineering Philosophy</label>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">Professional Bio & Academic Aspirations</label>
               <textarea
-                rows={2}
+                rows={3}
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
-                className="w-full p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 outline-none resize-none leading-relaxed"
+                placeholder="Tell AI about your learning style, upcoming exams, placement goals, or coding challenges..."
+                className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 outline-none resize-none focus:border-indigo-500"
               />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                <span className="flex items-center gap-1.5"><IndianRupee className="w-3.5 h-3.5 text-emerald-400" />Your UPI ID (for student payments)</span>
-              </label>
-              <input
-                type="text"
-                value={upiId}
-                onChange={(e) => setUpiId(e.target.value)}
-                placeholder="e.g. yourname@okaxis or 9876543210@upi"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 font-mono outline-none focus:border-emerald-500"
-              />
-              <p className="text-[11px] text-slate-500 mt-1">Students will scan a QR code linked to this UPI ID to pay you. Money goes directly to your bank — zero fees.</p>
             </div>
 
             <div className="flex justify-end pt-4 border-t border-slate-800">
-              <button
-                type="submit"
+              <button 
+                type="submit" 
                 className="px-6 py-2.5 rounded-xl font-semibold text-xs text-white bg-indigo-600 hover:bg-indigo-500 shadow-md shadow-indigo-600/20"
               >
-                Save Profile Changes
+                Save Profile
               </button>
             </div>
           </form>
         </div>
       )}
 
-      {/* 2. AI MODELS & KEYS TAB */}
+      {/* 2. AI ENGINE TAB */}
       {activeTab === 'ai' && (
         <div className="p-6 lg:p-8 rounded-3xl bg-slate-900/80 border border-slate-800 shadow-xl space-y-6">
-          <div className="border-b border-slate-800 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div>
-              <h3 className="font-display font-bold text-lg text-white">AI Engine & Multi-Model Credentials</h3>
-              <p className="text-xs text-slate-400 mt-1">Configure direct browser API keys or choose from fast inference providers. Keys are stored safely in local storage.</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                ✓ Client Streaming Ready
-              </span>
-            </div>
+          <div className="border-b border-slate-800 pb-4">
+            <h3 className="font-display font-bold text-lg text-white">AI Engine, Providers & API Keys</h3>
+            <p className="text-xs text-slate-400 mt-1">Configure your LLM provider and API keys. Keys are saved securely in your browser vault.</p>
           </div>
 
           <form onSubmit={handleSaveAI} className="space-y-6">
             
-            {/* Provider Selection Cards */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-2.5">Select Active LLM Provider</label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Provider Selector Cards */}
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-slate-300">Active AI Intelligence Provider</label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
                 {[
-                  { id: 'gemini', label: 'Google Gemini', badge: 'Recommended', desc: 'Gemini 2.5 / 2.0 Flash & Pro models', color: 'border-indigo-500/40 text-indigo-400' },
-                  { id: 'groq', label: 'Groq Cloud', badge: 'Ultra Fast', desc: 'Llama 3.3 70B & DeepSeek R1 Distill', color: 'border-amber-500/40 text-amber-400' },
-                  { id: 'openai', label: 'OpenAI', badge: 'GPT-4o', desc: 'GPT-4o, GPT-4o-mini, o3-mini', color: 'border-emerald-500/40 text-emerald-400' },
-                  { id: 'openrouter', label: 'OpenRouter', badge: 'Multi-LLM', desc: 'DeepSeek-R1, Claude 3.5, Gemini', color: 'border-purple-500/40 text-purple-400' },
-                ].map((p) => (
-                  <div
-                    key={p.id}
-                    onClick={() => {
-                      setProvider(p.id as any);
-                      const defaultModel = modelPresets[p.id]?.[0]?.model || 'gemini-2.0-flash';
-                      setModel(defaultModel);
-                    }}
-                    className={`p-4 rounded-2xl border cursor-pointer transition-all space-y-1.5 relative ${
-                      provider === p.id 
-                        ? 'bg-indigo-950/60 border-indigo-500 text-white shadow-xl shadow-indigo-950/50'
-                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-semibold text-xs text-slate-100">{p.label}</h4>
-                      {provider === p.id && <Check className="w-4 h-4 text-indigo-400" />}
-                    </div>
-                    <p className="text-[11px] text-slate-400 leading-tight">{p.desc}</p>
-                    <span className={`inline-block text-[9px] font-bold px-2 py-0.5 rounded-full mt-1 bg-slate-900 border border-slate-800 ${p.color}`}>
-                      {p.badge}
-                    </span>
-                  </div>
-                ))}
+                  { id: 'gemini', name: 'Google Gemini', badge: 'Fast & Multimodal', color: 'from-blue-600 to-cyan-600', icon: Sparkles },
+                  { id: 'groq', name: 'Groq Cloud', badge: 'Ultra-Fast LPU', color: 'from-orange-600 to-amber-600', icon: Zap },
+                  { id: 'openai', name: 'OpenAI GPT', badge: 'Reasoning & Coding', color: 'from-emerald-600 to-teal-600', icon: Cpu },
+                  { id: 'openrouter', name: 'OpenRouter', badge: 'DeepSeek / Claude', color: 'from-purple-600 to-pink-600', icon: Sliders },
+                  { id: 'kedar-ai', name: 'Kedar AI Offline', badge: 'No Key Required', color: 'from-indigo-600 to-purple-600', icon: ShieldCheck }
+                ].map(p => {
+                  const Icon = p.icon;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => {
+                        setProvider(p.id as any);
+                        const defaultM = modelPresets[p.id]?.[0]?.model || 'gemini-2.0-flash';
+                        setModel(defaultM);
+                        setTestResult(null);
+                        setLiveModels([]);
+                      }}
+                      className={`p-3 rounded-2xl border text-left transition-all relative flex flex-col justify-between ${
+                        provider === p.id 
+                          ? 'bg-slate-950 border-indigo-500 shadow-md ring-1 ring-indigo-500/50' 
+                          : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <Icon className={`w-4 h-4 ${provider === p.id ? 'text-indigo-400' : 'text-slate-400'}`} />
+                        {provider === p.id && <Check className="w-3.5 h-3.5 text-indigo-400" />}
+                      </div>
+                      <div>
+                        <div className="font-semibold text-xs text-white">{p.name}</div>
+                        <div className="text-[10px] text-slate-400">{p.badge}</div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            {/* Provider API Key Inputs */}
-            <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
-              
-              {/* Gemini Key */}
+            {/* API Key Input */}
+            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-200">
+                  {provider.toUpperCase()} API Key Configuration
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  {provider === 'kedar-ai' ? 'Autonomous Offline Engine' : 'Stored locally in browser vault'}
+                </span>
+              </div>
+
               {provider === 'gemini' && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
-                      <Key className="w-3.5 h-3.5 text-indigo-400" />
-                      <span>Google Gemini API Key</span>
-                    </label>
-                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-[11px] text-indigo-400 hover:underline flex items-center gap-1">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs text-slate-300 font-semibold">Google Gemini API Key</label>
+                    <a 
+                      href="https://aistudio.google.com/app/apikey" 
+                      target="_blank" 
+                      rel="noreferrer"
+                      className="text-[11px] text-indigo-400 hover:underline flex items-center gap-1"
+                    >
                       Get Free Key <ExternalLink className="w-3 h-3" />
                     </a>
                   </div>
@@ -455,8 +470,8 @@ export const SettingsView: React.FC = () => {
                     <input
                       type={showGeminiKey ? 'text' : 'password'}
                       value={geminiApiKey}
-                      onChange={(e) => setGeminiApiKey(e.target.value)}
-                      placeholder="AIzaSy... (or set VITE_GEMINI_API_KEY)"
+                      onChange={(e) => { setGeminiApiKey(e.target.value); setTestResult(null); }}
+                      placeholder="AIzaSy..."
                       className="w-full pl-3.5 pr-10 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono text-slate-100 outline-none focus:border-indigo-500"
                     />
                     <button
@@ -467,28 +482,28 @@ export const SettingsView: React.FC = () => {
                       {showGeminiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                  <p className="text-[11px] text-slate-500">Free tier: 1,500 requests/day. Leave blank to use smart offline engine.</p>
                 </div>
               )}
 
-              {/* Groq Key */}
               {provider === 'groq' && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
-                      <Key className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Groq API Key (Free & Ultra Fast)</span>
-                    </label>
-                    <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer" className="text-[11px] text-amber-400 hover:underline flex items-center gap-1">
-                      Get Free Groq Key <ExternalLink className="w-3 h-3" />
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs text-slate-300 font-semibold">Groq Cloud API Key</label>
+                    <a 
+                      href="https://console.groq.com/keys" 
+                      target="_blank" 
+                      rel="noreferrer"
+                      className="text-[11px] text-amber-400 hover:underline flex items-center gap-1"
+                    >
+                      Get Groq Key <ExternalLink className="w-3 h-3" />
                     </a>
                   </div>
                   <div className="relative">
                     <input
                       type={showGroqKey ? 'text' : 'password'}
                       value={groqApiKey}
-                      onChange={(e) => setGroqApiKey(e.target.value)}
-                      placeholder="gsk_... (or set VITE_GROQ_API_KEY)"
+                      onChange={(e) => { setGroqApiKey(e.target.value); setTestResult(null); }}
+                      placeholder="gsk_..."
                       className="w-full pl-3.5 pr-10 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono text-slate-100 outline-none focus:border-amber-500"
                     />
                     <button
@@ -499,28 +514,28 @@ export const SettingsView: React.FC = () => {
                       {showGroqKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                  <p className="text-[11px] text-slate-500">Free tier: 30 requests/minute. Blazing fast inference (800+ tokens/sec).</p>
                 </div>
               )}
 
-              {/* OpenAI Key */}
               {provider === 'openai' && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
-                      <Key className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>OpenAI API Key</span>
-                    </label>
-                    <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer" className="text-[11px] text-emerald-400 hover:underline flex items-center gap-1">
-                      Get Key <ExternalLink className="w-3 h-3" />
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs text-slate-300 font-semibold">OpenAI API Key</label>
+                    <a 
+                      href="https://platform.openai.com/api-keys" 
+                      target="_blank" 
+                      rel="noreferrer"
+                      className="text-[11px] text-emerald-400 hover:underline flex items-center gap-1"
+                    >
+                      Get OpenAI Key <ExternalLink className="w-3 h-3" />
                     </a>
                   </div>
                   <div className="relative">
                     <input
                       type={showOpenaiKey ? 'text' : 'password'}
                       value={openaiApiKey}
-                      onChange={(e) => setOpenaiApiKey(e.target.value)}
-                      placeholder="sk-proj-... (or set VITE_OPENAI_API_KEY)"
+                      onChange={(e) => { setOpenaiApiKey(e.target.value); setTestResult(null); }}
+                      placeholder="sk-proj-..."
                       className="w-full pl-3.5 pr-10 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono text-slate-100 outline-none focus:border-emerald-500"
                     />
                     <button
@@ -534,24 +549,25 @@ export const SettingsView: React.FC = () => {
                 </div>
               )}
 
-              {/* OpenRouter Key */}
               {provider === 'openrouter' && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
-                      <Key className="w-3.5 h-3.5 text-purple-400" />
-                      <span>OpenRouter API Key</span>
-                    </label>
-                    <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" className="text-[11px] text-purple-400 hover:underline flex items-center gap-1">
-                      Get Key <ExternalLink className="w-3 h-3" />
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs text-slate-300 font-semibold">OpenRouter API Key</label>
+                    <a 
+                      href="https://openrouter.ai/keys" 
+                      target="_blank" 
+                      rel="noreferrer"
+                      className="text-[11px] text-purple-400 hover:underline flex items-center gap-1"
+                    >
+                      Get OpenRouter Key <ExternalLink className="w-3 h-3" />
                     </a>
                   </div>
                   <div className="relative">
                     <input
                       type={showOpenrouterKey ? 'text' : 'password'}
                       value={openrouterApiKey}
-                      onChange={(e) => setOpenrouterApiKey(e.target.value)}
-                      placeholder="sk-or-v1-... (or set VITE_OPENROUTER_API_KEY)"
+                      onChange={(e) => { setOpenrouterApiKey(e.target.value); setTestResult(null); }}
+                      placeholder="sk-or-v1-..."
                       className="w-full pl-3.5 pr-10 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono text-slate-100 outline-none focus:border-purple-500"
                     />
                     <button
@@ -565,136 +581,46 @@ export const SettingsView: React.FC = () => {
                 </div>
               )}
 
-              {/* Live Connection Test Button */}
-              <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-800/80">
-                <button
-                  type="button"
-                  onClick={handleTestConnection}
-                  disabled={isTestingKey}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 transition-colors disabled:opacity-50"
-                >
-                  {isTestingKey ? <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400" /> : <Zap className="w-3.5 h-3.5 text-amber-400" />}
-                  <span>{isTestingKey ? 'Pinging API...' : 'Test & Verify Connection'}</span>
-                </button>
-
-                {testResult && (
-                  <div className={`text-xs flex items-center gap-2 ${testResult.success ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {testResult.success ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                    <span>{testResult.message} {testResult.latency ? `(${testResult.latency}ms)` : ''}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Model Presets & Selection */}
-            <div className="space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300">Model Selection & Catalog</label>
-                  <p className="text-[11px] text-slate-500">Pick from curated modern production models or fetch all active models for your API key.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleFetchLiveModels}
-                  disabled={isFetchingModels}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-indigo-300 hover:text-indigo-200 transition-colors self-start sm:self-auto disabled:opacity-50"
-                >
-                  {isFetchingModels ? <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400" /> : <RotateCcw className="w-3.5 h-3.5 text-indigo-400" />}
-                  <span>{isFetchingModels ? 'Querying API...' : 'Fetch Live Models from Key'}</span>
-                </button>
-              </div>
-
-              {/* Dynamic Live Models Pill Bar (if fetched) */}
-              {liveModels.length > 0 && (
-                <div className="p-3 rounded-2xl bg-indigo-950/30 border border-indigo-500/30 space-y-2">
-                  <span className="text-[11px] font-bold text-indigo-300 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-indigo-400" />
-                    <span>Active Models on Your Account ({liveModels.length})</span>
-                  </span>
-                  <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-1">
-                    {liveModels.map((lm) => (
-                      <button
-                        key={lm}
-                        type="button"
-                        onClick={() => setModel(lm)}
-                        className={`text-[11px] font-mono px-2.5 py-1 rounded-lg border transition-all ${
-                          model === lm 
-                            ? 'bg-indigo-600 text-white border-indigo-400 shadow-sm' 
-                            : 'bg-slate-900/80 text-slate-300 border-slate-800 hover:border-slate-600'
-                        }`}
-                      >
-                        {lm}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                {(modelPresets[provider] || modelPresets.gemini).map((preset) => (
-                  <div
+              {/* Curated Presets Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {(modelPresets[provider] || []).map((preset) => (
+                  <button
                     key={preset.model}
+                    type="button"
                     onClick={() => setModel(preset.model)}
-                    className={`p-3.5 rounded-xl border cursor-pointer transition-all space-y-1 ${
+                    className={`p-3.5 rounded-2xl border text-left transition-all ${
                       model === preset.model
-                        ? 'bg-indigo-950/40 border-indigo-500 text-white'
-                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                        ? 'bg-indigo-950/40 border-indigo-500/80 shadow-md ring-1 ring-indigo-500/40'
+                        : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-xs text-slate-200">{preset.label}</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-semibold text-xs text-white">{preset.label}</span>
                       {model === preset.model && <Check className="w-3.5 h-3.5 text-indigo-400" />}
                     </div>
-                    <p className="text-[10px] text-slate-500">{preset.desc}</p>
-                  </div>
+                    <p className="text-[11px] text-slate-400">{preset.desc}</p>
+                    <span className="inline-block mt-2 font-mono text-[10px] text-indigo-300/80 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
+                      {preset.model}
+                    </span>
+                  </button>
                 ))}
-              </div>
-
-              <div className="mt-2">
-                <input
-                  type="text"
-                  value={model}
-                  onChange={(e) => setModel(e.target.value)}
-                  placeholder="Or enter custom model ID..."
-                  className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-slate-200 outline-none focus:border-indigo-500"
-                />
-              </div>
-            </div>
-
-            {/* Temperature Slider */}
-            <div>
-              <div className="flex justify-between text-xs font-semibold text-slate-300 mb-1.5">
-                <span>Creativity / Temperature</span>
-                <span className="font-mono text-indigo-400">{temperature}</span>
-              </div>
-              <input 
-                type="range" 
-                min="0.1" 
-                max="1.0" 
-                step="0.1" 
-                value={temperature} 
-                onChange={(e) => setTemperature(parseFloat(e.target.value))} 
-                className="w-full accent-indigo-500" 
-              />
-              <div className="flex justify-between text-[10px] text-slate-500 mt-1">
-                <span>Precise & Deterministic (0.1)</span>
-                <span>Balanced (0.7)</span>
-                <span>Creative & Novel (1.0)</span>
               </div>
             </div>
 
             {/* Custom System Prompt */}
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">Custom System Instruction (Optional)</label>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                Custom System Prompt Instructions (Optional)
+              </label>
               <textarea
                 rows={3}
                 value={customPrompt}
                 onChange={(e) => setCustomPrompt(e.target.value)}
                 placeholder="Customize the default personality and instructions..."
-                className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 outline-none resize-none leading-relaxed focus:border-indigo-500"
+                className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 outline-none resize-none focus:border-indigo-500"
               />
             </div>
-
+            
             <div className="flex justify-end pt-4 border-t border-slate-800">
               <button 
                 type="submit" 
@@ -707,7 +633,173 @@ export const SettingsView: React.FC = () => {
         </div>
       )}
 
-      {/* 3. BUSINESS / PAYMENT TAB */}
+      {/* 3. APPEARANCE & THEME TAB (SUN / MOON) */}
+      {activeTab === 'appearance' && (
+        <div className="p-6 lg:p-8 rounded-3xl bg-slate-900/80 border border-slate-800 shadow-xl space-y-6">
+          <div className="border-b border-slate-800 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h3 className="font-display font-bold text-lg text-white flex items-center gap-2">
+                <Palette className="w-5 h-5 text-indigo-400" />
+                <span>Appearance, Theme & Audio Preferences</span>
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">Switch between Sun (Modern Light) and Moon (Cyber Dark Mode), toggle audio narration, and customize intelligence preferences.</p>
+            </div>
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-950 border border-slate-800 text-xs font-mono text-slate-300 self-start sm:self-auto">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Theme: {activeTheme === 'dark' ? 'Moon 🌙 Dark' : 'Sun ☀️ Light'}</span>
+            </div>
+          </div>
+
+          {/* Theme Selection Cards */}
+          <div className="space-y-3">
+            <label className="block text-xs font-semibold text-slate-300">Choose Interface Theme</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Dark Cyber Card */}
+              <div 
+                onClick={() => {
+                  setActiveTheme('dark');
+                  updateSettings({ theme: 'dark' });
+                  showToast('Dark Cyber Theme activated (Moon 🌙)!', 'success');
+                }}
+                className={`cursor-pointer p-5 rounded-2xl border transition-all duration-300 relative group flex flex-col justify-between ${
+                  activeTheme === 'dark'
+                    ? 'bg-slate-950 border-indigo-500 shadow-lg shadow-indigo-500/10 ring-2 ring-indigo-500/30'
+                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 opacity-70 hover:opacity-100'
+                }`}
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-indigo-400 flex items-center gap-2">
+                      <Moon className="w-5 h-5 text-indigo-400" />
+                      <span className="text-xs font-bold text-slate-200">Cyber Dark (Moon 🌙)</span>
+                    </div>
+                    {activeTheme === 'dark' && (
+                      <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-[10px] font-bold border border-indigo-500/30">
+                        <Check className="w-3 h-3" /> ACTIVE
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    High-contrast deep space slate (#080d1a) with neon glowing accents, ideal for night coding and reduced eye strain.
+                  </p>
+                </div>
+                {/* Visual mini-preview */}
+                <div className="mt-4 p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
+                  <div className="h-2 flex-1 rounded bg-slate-800" />
+                  <div className="h-2 w-12 rounded bg-indigo-500/40" />
+                </div>
+              </div>
+
+              {/* Light Mode Card */}
+              <div 
+                onClick={() => {
+                  setActiveTheme('light');
+                  updateSettings({ theme: 'light' });
+                  showToast('Modern Crisp Light Theme activated (Sun ☀️)!', 'success');
+                }}
+                className={`cursor-pointer p-5 rounded-2xl border transition-all duration-300 relative group flex flex-col justify-between ${
+                  activeTheme === 'light'
+                    ? 'bg-slate-100 border-amber-500 shadow-lg shadow-amber-500/10 ring-2 ring-amber-500/30 text-slate-900'
+                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 opacity-70 hover:opacity-100'
+                }`}
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="p-2.5 rounded-xl bg-white border border-slate-300 text-amber-500 flex items-center gap-2 shadow-sm">
+                      <Sun className="w-5 h-5 text-amber-500" />
+                      <span className="text-xs font-bold text-slate-800">Modern Light (Sun ☀️)</span>
+                    </div>
+                    {activeTheme === 'light' && (
+                      <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-800 text-[10px] font-bold border border-amber-500/30">
+                        <Check className="w-3 h-3" /> ACTIVE
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400 group-hover:text-slate-600">
+                    Clean, bright operational console (#f8fafc) with sharp typography, excellent daylight readability, and crisp borders.
+                  </p>
+                </div>
+                {/* Visual mini-preview */}
+                <div className="mt-4 p-2.5 rounded-xl bg-white border border-slate-200 flex items-center gap-2 shadow-inner">
+                  <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                  <div className="h-2 flex-1 rounded bg-slate-200" />
+                  <div className="h-2 w-12 rounded bg-amber-500/40" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Audio & Memory Preferences */}
+          <div className="space-y-4 pt-4 border-t border-slate-800">
+            <h4 className="font-bold text-xs text-slate-300 uppercase tracking-wider">Audio & Intelligence Toggles</h4>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Voice toggle */}
+              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                    {voiceSynthesis ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-white block">Voice Synthesis & Audio</span>
+                    <span className="text-[11px] text-slate-400">Read AI answers and viva questions aloud</span>
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={voiceSynthesis}
+                  onChange={(e) => {
+                    const val = e.target.checked;
+                    setVoiceSynthesis(val);
+                    updateSettings({ voiceSynthesis: val });
+                    showToast(val ? 'Voice Audio Enabled' : 'Voice Audio Muted', 'info');
+                  }}
+                  className="w-4 h-4 accent-indigo-600 rounded cursor-pointer"
+                />
+              </div>
+
+              {/* Auto-save memory toggle */}
+              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                    <Brain className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-white block">Auto-Save Memories</span>
+                    <span className="text-[11px] text-slate-400">Extract facts automatically from chat</span>
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={autoSaveMemory}
+                  onChange={(e) => {
+                    const val = e.target.checked;
+                    setAutoSaveMemory(val);
+                    updateSettings({ autoSaveMemory: val });
+                    showToast(val ? 'Auto Memory Active' : 'Auto Memory Paused', 'info');
+                  }}
+                  className="w-4 h-4 accent-purple-600 rounded cursor-pointer"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-4 border-t border-slate-800">
+            <button
+              onClick={() => {
+                updateSettings({ theme: activeTheme, voiceSynthesis, autoSaveMemory });
+                showToast('Preferences saved successfully!', 'success');
+              }}
+              className="px-6 py-2.5 rounded-xl font-semibold text-xs text-white bg-indigo-600 hover:bg-indigo-500 shadow-md"
+            >
+              Save Appearance Settings
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 4. BUSINESS / PAYMENT TAB */}
       {activeTab === 'business' && (
         <div className="p-6 lg:p-8 rounded-3xl bg-slate-900/80 border border-slate-800 shadow-xl space-y-6">
           <div className="border-b border-slate-800 pb-4">

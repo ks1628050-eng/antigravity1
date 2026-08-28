@@ -19,6 +19,7 @@ export type NavSection =
 export type UserTier = 'free' | 'pro' | 'campus';
 
 export interface UserProfile {
+  id?: string;
   name: string;
   email: string;
   education: string;
@@ -68,7 +69,7 @@ export interface Conversation {
   isPinned?: boolean;
 }
 
-export type AIProvider = 'gemini' | 'groq' | 'openai' | 'openrouter' | 'mock' | 'supabase';
+export type AIProvider = 'kedar-ai' | 'gemini' | 'groq' | 'openai' | 'openrouter' | 'mock' | 'supabase';
 
 export type AgentRole = 'supervisor' | 'architect' | 'engineer' | 'auditor' | 'devops';
 
@@ -91,10 +92,11 @@ export interface AgentStep {
 export interface AgentDeliverable {
   id: string;
   title: string;
-  type: 'code' | 'architecture' | 'docker' | 'synopsis' | 'config';
+  type: 'code' | 'architecture' | 'docker' | 'synopsis' | 'config' | 'tasks' | 'roadmap';
   filename: string;
   language: string;
   content: string;
+  actionPayload?: any;
 }
 
 export interface AgentTask {
@@ -110,22 +112,52 @@ export interface AgentTask {
 
 export interface TaskItem {
   id: string;
+  userId?: string;
   title: string;
   description: string;
   priority: 'high' | 'medium' | 'low';
-  category: 'academics' | 'coding' | 'career' | 'personal' | 'project';
+  category?: 'academics' | 'coding' | 'career' | 'personal' | 'project';
+  status?: 'todo' | 'in_progress' | 'completed' | 'active';
   deadline: string;
   isCompleted: boolean;
   createdAt: string;
+  updatedAt?: string;
   completedAt?: string;
 }
 
+export type MemoryCategory = 
+  | 'Profile' 
+  | 'Education' 
+  | 'Skills' 
+  | 'Projects' 
+  | 'Goals' 
+  | 'Preferences' 
+  | 'Other'
+  | 'skills'
+  | 'projects'
+  | 'preferences'
+  | 'career'
+  | 'academic'
+  | 'general';
+
 export interface MemoryItem {
   id: string;
+  userId?: string;
   content: string;
-  category: 'skills' | 'projects' | 'preferences' | 'career' | 'academic' | 'general';
+  category: MemoryCategory;
+  importance?: 'high' | 'medium' | 'low';
   createdAt: string;
   updatedAt?: string;
+}
+
+export interface LearningItem {
+  id: string;
+  roadmapId: string;
+  title: string;
+  description: string;
+  completed: boolean;
+  position: number;
+  createdAt?: string;
 }
 
 export interface LearningModule {
@@ -137,13 +169,17 @@ export interface LearningModule {
 
 export interface LearningRoadmap {
   id: string;
+  userId?: string;
   title: string;
   description: string;
   icon: string;
   estimatedWeeks: number;
   level: 'Beginner' | 'Intermediate' | 'Advanced';
   modules: LearningModule[];
+  items?: LearningItem[];
   progress: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface QuizQuestion {
@@ -170,6 +206,7 @@ export interface ResumeAnalysis {
 
 export interface ContentPost {
   id: string;
+  userId?: string;
   platform: 'linkedin' | 'twitter' | 'instagram' | 'youtube' | 'blog';
   topic: string;
   tone: 'professional' | 'casual' | 'viral' | 'educational' | 'motivational' | 'hinglish';
@@ -180,6 +217,7 @@ export interface ContentPost {
 
 export interface BusinessIdea {
   id: string;
+  userId?: string;
   title: string;
   tagline: string;
   problem: string;

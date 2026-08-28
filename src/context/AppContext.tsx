@@ -11,33 +11,35 @@ interface AppContextType {
   currentSection: NavSection;
   setCurrentSection: (section: NavSection) => void;
   profile: UserProfile;
-  updateProfile: (profile: UserProfile) => void;
+  updateProfile: (profile: UserProfile) => Promise<void>;
   tasks: TaskItem[];
-  addTask: (task: Omit<TaskItem, 'id' | 'createdAt'>) => void;
-  updateTask: (task: TaskItem) => void;
-  deleteTask: (id: string) => void;
-  toggleTask: (id: string) => void;
+  addTask: (task: Omit<TaskItem, 'id' | 'createdAt'>) => Promise<void>;
+  updateTask: (task: TaskItem) => Promise<void>;
+  deleteTask: (id: string) => Promise<void>;
+  toggleTask: (id: string) => Promise<void>;
   memories: MemoryItem[];
-  addMemory: (memory: Omit<MemoryItem, 'id' | 'createdAt'>) => void;
-  updateMemory: (memory: MemoryItem) => void;
-  deleteMemory: (id: string) => void;
+  addMemory: (memory: Omit<MemoryItem, 'id' | 'createdAt'>) => Promise<void>;
+  updateMemory: (memory: MemoryItem) => Promise<void>;
+  deleteMemory: (id: string) => Promise<void>;
   conversations: Conversation[];
   activeConversationId: string;
   setActiveConversationId: (id: string) => void;
   messages: Record<string, ChatMessage[]>;
   createConversation: (title?: string, category?: Conversation['category']) => string;
-  updateConversationTitle: (id: string, title: string) => void;
-  deleteConversation: (id: string) => void;
+  updateConversationTitle: (id: string, title: string) => Promise<void>;
+  deleteConversation: (id: string) => Promise<void>;
   addMessage: (conversationId: string, message: Omit<ChatMessage, 'id' | 'timestamp'>) => ChatMessage;
   updateMessageContent: (conversationId: string, messageId: string, content: string) => void;
   roadmaps: LearningRoadmap[];
-  toggleTopicCompletion: (roadmapId: string, moduleId: string, topicIndex: number) => void;
+  addRoadmap: (roadmap: LearningRoadmap) => Promise<void>;
+  deleteRoadmap: (id: string) => Promise<void>;
+  toggleTopicCompletion: (roadmapId: string, moduleId: string, topicIndex: number) => Promise<void>;
   businessIdeas: BusinessIdea[];
-  addBusinessIdea: (idea: BusinessIdea) => void;
-  deleteBusinessIdea: (id: string) => void;
+  addBusinessIdea: (idea: BusinessIdea) => Promise<void>;
+  deleteBusinessIdea: (id: string) => Promise<void>;
   contentPosts: ContentPost[];
-  addContentPost: (post: ContentPost) => void;
-  deleteContentPost: (id: string) => void;
+  addContentPost: (post: ContentPost) => Promise<void>;
+  deleteContentPost: (id: string) => Promise<void>;
   settings: AISettings;
   updateSettings: (settings: Partial<AISettings>) => void;
   toast: { message: string; type: 'success' | 'error' | 'info' } | null;
@@ -46,9 +48,10 @@ interface AppContextType {
   setIsMobileSidebarOpen: (open: boolean) => void;
   session: Session | null;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, fullName?: string) => Promise<void>;
   signOut: () => Promise<void>;
   isCloudConfigured: boolean;
+  isLoadingData: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -70,10 +73,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [settings, setSettings] = useState<AISettings>(() => storageService.getSettings());
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
-  const [isBackendHydrated, setIsBackendHydrated] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
+  const [isLoadingData, setIsLoadingData] = useState<boolean>(false);
 
-  // Sync theme
+  // Sync dark/light theme
   useEffect(() => {
     if (settings.theme === 'dark') {
       document.documentElement.classList.add('dark');
@@ -84,75 +87,97 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [settings.theme]);
 
+  // Hydrate session & Supabase database tables
   useEffect(() => {
     let cancelled = false;
-    const hydrate = async () => {
+
+    const hydrateAuthAndData = async () => {
+      setIsLoadingData(true);
       try {
-        const session = await backendService.getSession();
-        setSession(session);
-        const workspace = session ? await backendService.loadWorkspace() : null;
+        const activeSession = await backendService.getSession();
         if (cancelled) return;
-        if (workspace?.profile) setProfile(workspace.profile);
-        if (workspace?.tasks) setTasks(workspace.tasks);
-        if (workspace?.memories) setMemories(workspace.memories);
-        if (workspace?.roadmaps) setRoadmaps(workspace.roadmaps);
-        if (workspace?.conversations) setConversations(workspace.conversations);
-        if (workspace?.messages) setMessages(workspace.messages);
-        if (workspace?.businessIdeas) setBusinessIdeas(workspace.businessIdeas);
-        if (workspace?.contentPosts) setContentPosts(workspace.contentPosts);
-        if (workspace?.settings) setSettings(workspace.settings);
+        setSession(activeSession);
+
+        if (activeSession) {
+          // Fetch normalized tables in parallel
+          const [
+            cloudProfile,
+            cloudTasks,
+            cloudMemories,
+            cloudRoadmaps,
+            cloudConvs,
+            cloudIdeas,
+            cloudPosts
+          ] = await Promise.all([
+            backendService.getProfile(),
+            backendService.getTasks(),
+            backendService.getMemories(),
+            backendService.getRoadmaps(),
+            backendService.getConversations(),
+            backendService.getBusinessIdeas(),
+            backendService.getContentPosts()
+          ]);
+
+          if (cancelled) return;
+          if (cloudProfile) setProfile(cloudProfile);
+          if (cloudTasks && cloudTasks.length > 0) setTasks(cloudTasks);
+          if (cloudMemories && cloudMemories.length > 0) setMemories(cloudMemories);
+          if (cloudRoadmaps && cloudRoadmaps.length > 0) setRoadmaps(cloudRoadmaps);
+          if (cloudConvs && cloudConvs.length > 0) {
+            setConversations(cloudConvs);
+            setActiveConversationId(cloudConvs[0].id);
+
+            // Fetch messages for active conversation
+            const activeMsgs = await backendService.getMessages(cloudConvs[0].id);
+            if (activeMsgs && !cancelled) {
+              setMessages(prev => ({ ...prev, [cloudConvs[0].id]: activeMsgs }));
+            }
+          }
+          if (cloudIdeas && cloudIdeas.length > 0) setBusinessIdeas(cloudIdeas);
+          if (cloudPosts && cloudPosts.length > 0) setContentPosts(cloudPosts);
+        }
       } catch (error) {
-        console.warn('Cloud workspace unavailable; continuing with local data.', error);
+        console.warn('Supabase table hydration error:', error);
       } finally {
-        if (!cancelled) setIsBackendHydrated(true);
+        if (!cancelled) setIsLoadingData(false);
       }
     };
-    void hydrate();
+
+    void hydrateAuthAndData();
     return () => { cancelled = true; };
   }, []);
-
-  const signIn = async (email: string, password: string) => {
-    await backendService.signIn(email, password);
-    setSession(await backendService.getSession());
-  };
-
-  const signUp = async (email: string, password: string) => {
-    await backendService.signUp(email, password);
-    setSession(await backendService.getSession());
-  };
-
-  const signOut = async () => {
-    await backendService.signOut();
-    setSession(null);
-  };
-
-  useEffect(() => {
-    if (!isBackendHydrated) return;
-    void backendService.saveWorkspace({
-      profile,
-      tasks,
-      memories,
-      roadmaps,
-      conversations,
-      messages,
-      businessIdeas,
-      contentPosts,
-      settings
-    }).catch(error => console.warn('Cloud workspace sync failed.', error));
-  }, [isBackendHydrated, profile, tasks, memories, roadmaps, conversations, messages, businessIdeas, contentPosts, settings]);
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);
   };
 
-  const updateProfile = (newProfile: UserProfile) => {
-    setProfile(newProfile);
-    storageService.saveProfile(newProfile);
-    showToast('Profile updated successfully!', 'success');
+  const signIn = async (email: string, password: string) => {
+    const s = await backendService.signIn(email, password);
+    setSession(s);
+    showToast('Signed in successfully!', 'success');
   };
 
-  const addTask = (taskData: Omit<TaskItem, 'id' | 'createdAt'>) => {
+  const signUp = async (email: string, password: string, fullName?: string) => {
+    const s = await backendService.signUp(email, password, fullName);
+    setSession(s);
+    showToast('Account created successfully!', 'success');
+  };
+
+  const signOut = async () => {
+    await backendService.signOut();
+    setSession(null);
+    showToast('Signed out of Kedar AI', 'info');
+  };
+
+  const updateProfile = async (newProfile: UserProfile) => {
+    setProfile(newProfile);
+    storageService.saveProfile(newProfile);
+    await backendService.upsertProfile(newProfile);
+    showToast('Profile updated and synced!', 'success');
+  };
+
+  const addTask = async (taskData: Omit<TaskItem, 'id' | 'createdAt'>) => {
     const newTask: TaskItem = {
       ...taskData,
       id: `task-${Date.now()}`,
@@ -161,40 +186,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const updated = [newTask, ...tasks];
     setTasks(updated);
     storageService.saveTasks(updated);
+    await backendService.saveTask(newTask);
     showToast('Task added to your board!', 'success');
   };
 
-  const updateTask = (updatedTask: TaskItem) => {
+  const updateTask = async (updatedTask: TaskItem) => {
     const updated = tasks.map(t => t.id === updatedTask.id ? updatedTask : t);
     setTasks(updated);
     storageService.saveTasks(updated);
+    await backendService.saveTask(updatedTask);
     showToast('Task updated!', 'success');
   };
 
-  const deleteTask = (id: string) => {
+  const deleteTask = async (id: string) => {
     const updated = tasks.filter(t => t.id !== id);
     setTasks(updated);
     storageService.saveTasks(updated);
+    await backendService.deleteTask(id);
     showToast('Task removed', 'info');
   };
 
-  const toggleTask = (id: string) => {
+  const toggleTask = async (id: string) => {
+    let targetTask: TaskItem | undefined;
     const updated = tasks.map(t => {
       if (t.id === id) {
         const nextState = !t.isCompleted;
-        return {
+        targetTask = {
           ...t,
           isCompleted: nextState,
+          status: nextState ? 'completed' : 'todo',
           completedAt: nextState ? new Date().toISOString() : undefined
         };
+        return targetTask;
       }
       return t;
     });
     setTasks(updated);
     storageService.saveTasks(updated);
+    if (targetTask) {
+      await backendService.saveTask(targetTask);
+    }
   };
 
-  const addMemory = (memoryData: Omit<MemoryItem, 'id' | 'createdAt'>) => {
+  const addMemory = async (memoryData: Omit<MemoryItem, 'id' | 'createdAt'>) => {
     const newMemory: MemoryItem = {
       ...memoryData,
       id: `mem-${Date.now()}`,
@@ -203,20 +237,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const updated = [newMemory, ...memories];
     setMemories(updated);
     storageService.saveMemories(updated);
+    await backendService.saveMemory(newMemory);
     showToast('Memory saved to AI brain!', 'success');
   };
 
-  const updateMemory = (updatedMemory: MemoryItem) => {
+  const updateMemory = async (updatedMemory: MemoryItem) => {
     const updated = memories.map(m => m.id === updatedMemory.id ? { ...updatedMemory, updatedAt: new Date().toISOString() } : m);
     setMemories(updated);
     storageService.saveMemories(updated);
+    await backendService.saveMemory(updatedMemory);
     showToast('Memory updated!', 'success');
   };
 
-  const deleteMemory = (id: string) => {
+  const deleteMemory = async (id: string) => {
     const updated = memories.filter(m => m.id !== id);
     setMemories(updated);
     storageService.saveMemories(updated);
+    await backendService.deleteMemory(id);
     showToast('Memory deleted', 'info');
   };
 
@@ -232,22 +269,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setConversations(updatedConvs);
     storageService.saveConversations(updatedConvs);
     
-    // Initialize empty message array
     const updatedMessages = { ...messages, [newConv.id]: [] };
     setMessages(updatedMessages);
     storageService.saveMessages(updatedMessages);
     
     setActiveConversationId(newConv.id);
+    void backendService.saveConversation(newConv);
     return newConv.id;
   };
 
-  const updateConversationTitle = (id: string, title: string) => {
-    const updated = conversations.map(c => c.id === id ? { ...c, title, updatedAt: new Date().toISOString() } : c);
+  const updateConversationTitle = async (id: string, title: string) => {
+    let targetConv: Conversation | undefined;
+    const updated = conversations.map(c => {
+      if (c.id === id) {
+        targetConv = { ...c, title, updatedAt: new Date().toISOString() };
+        return targetConv;
+      }
+      return c;
+    });
     setConversations(updated);
     storageService.saveConversations(updated);
+    if (targetConv) {
+      await backendService.saveConversation(targetConv);
+    }
   };
 
-  const deleteConversation = (id: string) => {
+  const deleteConversation = async (id: string) => {
     const updatedConvs = conversations.filter(c => c.id !== id);
     setConversations(updatedConvs);
     storageService.saveConversations(updatedConvs);
@@ -260,6 +307,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (activeConversationId === id) {
       setActiveConversationId(updatedConvs.length > 0 ? updatedConvs[0].id : '');
     }
+    await backendService.deleteConversation(id);
     showToast('Conversation deleted', 'info');
   };
 
@@ -277,49 +325,65 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setMessages(updatedMap);
     storageService.saveMessages(updatedMap);
 
-    // Update conversation timestamp
     const updatedConvs = conversations.map(c => c.id === conversationId ? { ...c, updatedAt: new Date().toISOString() } : c);
     setConversations(updatedConvs);
     storageService.saveConversations(updatedConvs);
+
+    if (!newMsg.isStreaming && newMsg.content) {
+      void backendService.saveMessage(newMsg);
+    }
 
     return newMsg;
   };
 
   const updateMessageContent = (conversationId: string, messageId: string, content: string) => {
     const convMessages = messages[conversationId] || [];
-    const updatedList = convMessages.map(m => m.id === messageId ? { ...m, content } : m);
+    const updatedList = convMessages.map(m => m.id === messageId ? { ...m, content, isStreaming: false } : m);
     const updatedMap = { ...messages, [conversationId]: updatedList };
 
     setMessages(updatedMap);
     storageService.saveMessages(updatedMap);
+
+    const targetMsg = updatedList.find(m => m.id === messageId);
+    if (targetMsg && content) {
+      void backendService.saveMessage(targetMsg);
+    }
   };
 
-  const toggleTopicCompletion = (roadmapId: string, moduleId: string, topicIndex: number) => {
+  const addRoadmap = async (roadmap: LearningRoadmap) => {
+    const updated = [roadmap, ...roadmaps];
+    setRoadmaps(updated);
+    storageService.saveRoadmaps(updated);
+    await backendService.saveRoadmap(roadmap);
+    showToast('Learning roadmap saved to your curriculum!', 'success');
+  };
+
+  const deleteRoadmap = async (id: string) => {
+    const updated = roadmaps.filter(r => r.id !== id);
+    setRoadmaps(updated);
+    storageService.saveRoadmaps(updated);
+    await backendService.deleteRoadmap(id);
+    showToast('Roadmap removed', 'info');
+  };
+
+  const toggleTopicCompletion = async (roadmapId: string, moduleId: string, topicIndex: number) => {
     const updatedRoadmaps = roadmaps.map(r => {
       if (r.id === roadmapId) {
         const updatedModules = r.modules.map(m => {
           if (m.id === moduleId) {
-            const completedTopics = m.topics.map((topic, index) => {
-              if (index !== topicIndex) return topic;
-              return topic;
-            });
-            return { ...m, topics: completedTopics, completed: !m.completed };
+            return { ...m, completed: !m.completed };
           }
           return m;
         });
 
-        // Recalculate progress
-        let totalTopics = 0;
-        let completedTopics = 0;
-        updatedModules.forEach(m => {
-          totalTopics += m.topics.length;
-          if (m.completed) completedTopics += m.topics.length;
-        });
+        let totalModules = updatedModules.length;
+        let completedModules = updatedModules.filter(m => m.completed).length;
+        const progress = totalModules > 0 ? Math.round((completedModules / totalModules) * 100) : 0;
 
         return {
           ...r,
           modules: updatedModules,
-          progress: totalTopics > 0 ? Math.round((completedTopics / totalTopics) * 100) : r.progress
+          progress
         };
       }
       return r;
@@ -327,33 +391,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setRoadmaps(updatedRoadmaps);
     storageService.saveRoadmaps(updatedRoadmaps);
+
+    const target = updatedRoadmaps.find(r => r.id === roadmapId);
+    if (target) {
+      await backendService.saveRoadmap(target);
+    }
   };
 
-  const addBusinessIdea = (idea: BusinessIdea) => {
+  const addBusinessIdea = async (idea: BusinessIdea) => {
     const updated = [idea, ...businessIdeas];
     setBusinessIdeas(updated);
     storageService.saveBusinessIdeas(updated);
+    await backendService.saveBusinessIdea(idea);
     showToast('Business idea saved to vault!', 'success');
   };
 
-  const deleteBusinessIdea = (id: string) => {
+  const deleteBusinessIdea = async (id: string) => {
     const updated = businessIdeas.filter(b => b.id !== id);
     setBusinessIdeas(updated);
     storageService.saveBusinessIdeas(updated);
+    await backendService.deleteBusinessIdea(id);
     showToast('Idea removed', 'info');
   };
 
-  const addContentPost = (post: ContentPost) => {
+  const addContentPost = async (post: ContentPost) => {
     const updated = [post, ...contentPosts];
     setContentPosts(updated);
     storageService.saveContentPosts(updated);
+    await backendService.saveContentPost(post);
     showToast('Content post saved to studio!', 'success');
   };
 
-  const deleteContentPost = (id: string) => {
+  const deleteContentPost = async (id: string) => {
     const updated = contentPosts.filter(p => p.id !== id);
     setContentPosts(updated);
     storageService.saveContentPosts(updated);
+    await backendService.deleteContentPost(id);
     showToast('Post removed', 'info');
   };
 
@@ -389,6 +462,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addMessage,
       updateMessageContent,
       roadmaps,
+      addRoadmap,
+      deleteRoadmap,
       toggleTopicCompletion,
       businessIdeas,
       addBusinessIdea,
@@ -406,7 +481,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       signIn,
       signUp,
       signOut,
-      isCloudConfigured: backendService.isConfigured
+      isCloudConfigured: backendService.isConfigured,
+      isLoadingData
     }}>
       {children}
     </AppContext.Provider>

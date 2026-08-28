@@ -23,8 +23,9 @@ It has:
 🎙️ Live Audio Viva Voce Examiner
 📑 1-Click Lab Practical Record Generators
 💻 LeetCode & DSA Code Optimizer
+🚀 Autonomous AI Agent Swarm
 
-Use my student link for 50% OFF with code KEDAR50:
+Join now using my referral link:
 👉 ${referralLink}`;
 
   const copyLink = () => {

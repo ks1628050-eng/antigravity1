@@ -19,9 +19,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, p
   const { profile, updateProfile, showToast } = useApp();
   
   const [paymentMethod, setPaymentMethod] = useState<'upi' | 'razorpay'>('upi');
-  const [couponCode, setCouponCode] = useState('');
-  const [discountPercent, setDiscountPercent] = useState(0);
-  const [couponApplied, setCouponApplied] = useState(false);
+  const [utrNumber, setUtrNumber] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState('');
@@ -32,9 +30,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, p
   const upiId = (profile as any).upiId || (import.meta as any).env?.VITE_OWNER_UPI_ID || '';
   const hasRazorpay = paymentService.isRazorpayConfigured();
 
-  const originalPrice = plan?.price ?? 0;
-  const discountAmount = Math.round((originalPrice * discountPercent) / 100);
-  const finalPrice = originalPrice - discountAmount;
+  const finalPrice = plan?.price ?? 0;
 
   useEffect(() => {
     if (isOpen && plan && upiId) {
@@ -46,22 +42,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, p
   }, [isOpen, plan, finalPrice, upiId]);
 
   if (!isOpen || !plan) return null;
-
-  const handleApplyCoupon = (e: React.FormEvent) => {
-    e.preventDefault();
-    const code = couponCode.toUpperCase().trim();
-    if (code === 'KEDAR50' || code === 'STUDENT50' || code === 'LAUNCH50') {
-      setDiscountPercent(50);
-      setCouponApplied(true);
-      showToast('50% Student Launch Discount Applied! 🎉', 'success');
-    } else if (code === 'KEDAR25') {
-      setDiscountPercent(25);
-      setCouponApplied(true);
-      showToast('25% Discount Applied!', 'success');
-    } else {
-      showToast('Invalid coupon. Try "KEDAR50" for 50% off!', 'error');
-    }
-  };
 
   const handleRazorpayPayment = async () => {
     setIsProcessing(true);
@@ -96,6 +76,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, p
     }
   };
 
+  const handleConfirmUpiPayment = () => {
+    setIsProcessing(true);
+    setTimeout(() => {
+      setIsProcessing(false);
+      activatePro(utrNumber || 'UPI_DIRECT');
+    }, 800);
+  };
+
   const activatePro = (paymentId?: string) => {
     setIsSuccess(true);
     updateProfile({ ...profile, userTier: 'pro', tierExpiresAt: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString() } as any);
@@ -107,6 +95,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, p
   const copyUpiId = () => {
     navigator.clipboard.writeText(upiId);
     setCopiedUpi(true);
+    showToast('UPI ID copied to clipboard!', 'success');
     setTimeout(() => setCopiedUpi(false), 2000);
   };
 
@@ -117,7 +106,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, p
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-800 pb-4">
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Secure Checkout</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Direct Account Checkout</span>
             <h3 className="text-xl font-display font-bold text-white">{plan.name}</h3>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800">
@@ -135,43 +124,18 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, p
                 <span className="text-slate-200 font-semibold">{plan.period}</span>
               </div>
               <div className="flex justify-between text-xs text-slate-400">
-                <span>Base Price</span>
-                <span className="text-slate-200 font-semibold">₹{originalPrice}</span>
+                <span>Direct Payout</span>
+                <span className="text-emerald-400 font-semibold">100% to Your Bank</span>
               </div>
-              {couponApplied && (
-                <div className="flex justify-between text-xs text-emerald-400 font-semibold">
-                  <span>Discount ({discountPercent}%)</span>
-                  <span>− ₹{discountAmount}</span>
-                </div>
-              )}
               <div className="pt-2 border-t border-slate-900 flex justify-between items-baseline">
-                <span className="text-sm font-bold text-white">Total</span>
+                <span className="text-sm font-bold text-white">Amount Payable</span>
                 <span className="text-2xl font-display font-extrabold text-emerald-400">₹{finalPrice}</span>
               </div>
             </div>
 
-            {/* Coupon Code */}
-            <form onSubmit={handleApplyCoupon} className="flex gap-2">
-              <input
-                type="text"
-                placeholder='Promo Code — try "KEDAR50"'
-                value={couponCode}
-                onChange={(e) => setCouponCode(e.target.value)}
-                disabled={couponApplied}
-                className="flex-1 px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-slate-200 uppercase placeholder-slate-500 outline-none focus:border-indigo-500 disabled:opacity-50"
-              />
-              <button
-                type="submit"
-                disabled={couponApplied || !couponCode.trim()}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-xs font-semibold text-white transition-colors"
-              >
-                {couponApplied ? '✓ Applied' : 'Apply'}
-              </button>
-            </form>
-
             {/* Payment Method Tabs */}
             <div className="space-y-2">
-              <label className="block text-xs font-semibold text-slate-300">Payment Method</label>
+              <label className="block text-xs font-semibold text-slate-300">Choose Payment Mode</label>
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
@@ -181,7 +145,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, p
                   }`}
                 >
                   <Smartphone className="w-4 h-4 text-emerald-400" />
-                  <span>UPI / QR (Recommended)</span>
+                  <span>Direct UPI / QR</span>
                 </button>
 
                 <button
@@ -192,7 +156,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, p
                   }`}
                 >
                   <CreditCard className="w-4 h-4 text-indigo-400" />
-                  <span>Razorpay / Card</span>
+                  <span>Cards / NetBanking</span>
                 </button>
               </div>
             </div>
@@ -238,10 +202,35 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, p
                       <ExternalLink className="w-3.5 h-3.5" />
                     </a>
 
-                    <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30">
-                      <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                      <p className="text-[11px] text-amber-200 leading-relaxed">
-                        After payment, screenshot your UPI transaction ID and share it on WhatsApp or email to activate your PRO account instantly.
+                    {/* Direct UTR / Confirmation */}
+                    <div className="pt-2 border-t border-slate-900 space-y-2">
+                      <label className="block text-[11px] font-semibold text-slate-300">
+                        Paid via UPI? Enter UTR / Ref No. to Activate Instantly:
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="e.g. 423987123456 (or click Confirm)"
+                          value={utrNumber}
+                          onChange={(e) => setUtrNumber(e.target.value)}
+                          className="flex-1 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono text-slate-200 outline-none focus:border-emerald-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleConfirmUpiPayment}
+                          disabled={isProcessing}
+                          className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-xs font-bold text-white transition-all flex items-center gap-1.5 shadow-md shadow-emerald-600/20 disabled:opacity-50"
+                        >
+                          {isProcessing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                          <span>Confirm & Unlock</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-2 p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
+                      <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        100% of this payment goes directly to the account owner via instant UPI. Zero platform commission.
                       </p>
                     </div>
 
