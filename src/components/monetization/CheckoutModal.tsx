@@ -26,8 +26,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, p
   const [upiLink, setUpiLink] = useState('');
   const [copiedUpi, setCopiedUpi] = useState(false);
 
-  // Get UPI ID from profile (stored in Settings) or env
-  const upiId = (profile as any).upiId || (import.meta as any).env?.VITE_OWNER_UPI_ID || '';
+  // Owner UPI ID is configured exclusively in environment variables (.env / Vercel)
+  const upiId = ((import.meta as any).env?.VITE_OWNER_UPI_ID || '').trim();
   const hasRazorpay = paymentService.isRazorpayConfigured();
 
   const finalPrice = plan?.price ?? 0;
@@ -242,8 +242,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, p
                       <AlertCircle className="w-6 h-6" />
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-white">UPI ID Not Set</p>
-                      <p className="text-xs text-slate-400 mt-1">Go to <strong>Settings → Business</strong> and enter your UPI ID to generate QR codes for student payments.</p>
+                      <p className="text-sm font-bold text-white">Owner UPI Not Configured</p>
+                      <p className="text-xs text-slate-400 mt-1">Add <code className="text-amber-300 font-mono">VITE_OWNER_UPI_ID</code> to your <code className="text-amber-300 font-mono">.env</code> or Vercel environment variables to generate student payment QR codes.</p>
                     </div>
                   </div>
                 )}

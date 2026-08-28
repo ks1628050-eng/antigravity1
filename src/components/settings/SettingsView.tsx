@@ -15,7 +15,7 @@ import { aiService, getApiKey } from '../../services/aiService';
 export const SettingsView: React.FC = () => {
   const { profile, updateProfile, settings, updateSettings, showToast } = useApp();
   
-  const [activeTab, setActiveTab] = useState<'profile' | 'ai' | 'appearance' | 'business' | 'data'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'ai' | 'appearance' | 'data'>('profile');
   
   // Profile state
   const [name, setName] = useState(profile.name);
@@ -28,7 +28,6 @@ export const SettingsView: React.FC = () => {
   const [skillsStr, setSkillsStr] = useState(profile.skills.join(', '));
   const [projectsStr, setProjectsStr] = useState(profile.currentProjects.join(', '));
   const [bio, setBio] = useState(profile.bio);
-  const [upiId, setUpiId] = useState((profile as any).upiId || '');
 
   // AI settings state
   const [provider, setProvider] = useState<AIProvider>(settings.provider || 'gemini');
@@ -53,10 +52,6 @@ export const SettingsView: React.FC = () => {
   const [isTestingKey, setIsTestingKey] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string; latency?: number } | null>(null);
 
-  const envUPI = (import.meta as any).env?.VITE_OWNER_UPI_ID as string || '';
-  const activeUPI = upiId || envUPI;
-  const [qrPreviewAmount, setQrPreviewAmount] = useState(199);
-
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
     const updated = { 
@@ -70,10 +65,10 @@ export const SettingsView: React.FC = () => {
       targetRole, 
       skills: skillsStr.split(',').map(s => s.trim()).filter(Boolean), 
       currentProjects: projectsStr.split(',').map(p => p.trim()).filter(Boolean), 
-      bio, 
-      upiId 
-    } as any;
+      bio 
+    };
     updateProfile(updated);
+    showToast('Profile updated successfully!', 'success');
   };
 
   const handleSaveAI = (e: React.FormEvent) => {
@@ -237,7 +232,7 @@ export const SettingsView: React.FC = () => {
 
         {/* Tab navigation */}
         <div className="flex flex-wrap items-center p-1.5 rounded-2xl bg-slate-950 border border-slate-800 self-start md:self-auto gap-1">
-          {(['profile', 'ai', 'appearance', 'business', 'data'] as const).map(tab => (
+          {(['profile', 'ai', 'appearance', 'data'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -247,7 +242,6 @@ export const SettingsView: React.FC = () => {
             >
               {tab === 'ai' ? '🤖 AI Models & Keys' :
                tab === 'appearance' ? '☀️ / 🌙 Appearance' :
-               tab === 'business' ? '💰 Payments' :
                tab === 'data' ? '💾 Backup & Data' : '👤 Profile'}
             </button>
           ))}
@@ -795,89 +789,6 @@ export const SettingsView: React.FC = () => {
             >
               Save Appearance Settings
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* 4. BUSINESS / PAYMENT TAB */}
-      {activeTab === 'business' && (
-        <div className="p-6 lg:p-8 rounded-3xl bg-slate-900/80 border border-slate-800 shadow-xl space-y-6">
-          <div className="border-b border-slate-800 pb-4">
-            <h3 className="font-display font-bold text-lg text-white">💰 Payment & Business Settings</h3>
-            <p className="text-xs text-slate-400 mt-1">Set up your UPI ID to start collecting student payments. Preview how the QR code will look.</p>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Left — UPI Setup */}
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Your UPI ID</label>
-                <input
-                  type="text"
-                  value={upiId}
-                  onChange={(e) => setUpiId(e.target.value)}
-                  placeholder="yourname@okaxis or 9876543210@upi"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 font-mono outline-none focus:border-emerald-500"
-                />
-                <p className="text-[11px] text-slate-500 mt-1">Money goes directly to your bank. Zero platform fees.</p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Preview Amount (₹)</label>
-                <input
-                  type="number"
-                  value={qrPreviewAmount}
-                  onChange={(e) => setQrPreviewAmount(Number(e.target.value))}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <button
-                onClick={() => { const updated = { ...profile, upiId } as any; updateProfile(updated); showToast('UPI ID saved! QR codes updated.', 'success'); }}
-                className="w-full py-2.5 rounded-xl font-semibold text-xs text-white bg-emerald-600 hover:bg-emerald-500 shadow-md"
-              >
-                Save UPI ID
-              </button>
-
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs text-slate-300">
-                <p className="font-bold text-white">How to find your UPI ID:</p>
-                <p>• GPay → Profile → UPI ID shown below your name</p>
-                <p>• PhonePe → Profile → UPI ID</p>
-                <p>• Paytm → Profile → UPI Settings</p>
-                <p>• Bank app → UPI section → Your UPI handle</p>
-              </div>
-            </div>
-
-            {/* Right — Live QR Preview */}
-            <div className="flex flex-col items-center justify-center space-y-4">
-              <p className="text-xs font-semibold text-slate-300">Live QR Preview</p>
-              {activeUPI ? (
-                <>
-                  <div className="w-48 h-48 bg-white rounded-2xl flex items-center justify-center overflow-hidden shadow-xl border-4 border-emerald-500/40">
-                    <img
-                      src={paymentService.getUPIQRCodeUrl(activeUPI, qrPreviewAmount, 'PRO Plan')}
-                      alt="UPI QR Code"
-                      className="w-full h-full object-contain"
-                    />
-                  </div>
-                  <div className="text-center">
-                    <p className="text-xs font-bold text-white">₹{qrPreviewAmount} → {activeUPI}</p>
-                    <p className="text-[11px] text-slate-400">Students scan this to pay you directly</p>
-                  </div>
-                  <a
-                    href={paymentService.generateUPILink(activeUPI, qrPreviewAmount, 'Test Payment')}
-                    className="flex items-center gap-1.5 text-xs text-emerald-400 font-semibold"
-                  >
-                    <Smartphone className="w-3.5 h-3.5" /> Test on your phone
-                  </a>
-                </>
-              ) : (
-                <div className="w-48 h-48 bg-slate-950 rounded-2xl border-2 border-dashed border-slate-700 flex flex-col items-center justify-center gap-2 text-slate-600">
-                  <QrCode className="w-12 h-12" />
-                  <p className="text-xs text-center">Enter your UPI ID to preview</p>
-                </div>
-              )}
-            </div>
           </div>
         </div>
       )}
